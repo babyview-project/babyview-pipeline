@@ -1,0 +1,67 @@
+---
+title: "enrollment"
+author: "Bria Long"
+date: "2024-03-29"
+output: html_document
+---
+
+
+```{r}
+library(tidyverse)
+families = read_csv('Families-Enrolled - Families-Enrolled.csv')
+
+```
+
+
+```{r}
+families_cleaned <- families %>%
+  rename(status = `Enrollment Status (from Enrolled Families)`) %>%
+  rename(date = `Enrollment Date (from Enrolled Families)`) %>%
+  mutate(entry_age = difftime(ymd(today()), mdy(DoB), units='days')) %>%
+  filter(status == 'Enrolled') %>%
+  mutate(days_enrolled = difftime(ymd(today()), mdy(date), units='days')) %>%
+  mutate(months_since = as.numeric(days_enrolled/30.41)) %>%
+  mutate(entry_age_months = as.numeric(entry_age/30.41)) %>%
+  mutate(subid = as.factor(`Subject ID`)) %>%
+  mutate(Income = parse_number(`Average Income`)) %>%
+  mutate(Siblings = as.numeric(`# of children in the household`)) %>%
+  select(subid, status, date,  entry_age_months, months_since, Race, Income, Siblings) %>%
+  mutate(start_age = entry_age_months) %>%
+  pivot_longer(cols=c('entry_age_months','months_since'), names_to='timepoint',values_to='time')
+  
+```
+
+```{r}
+ggplot(families_cleaned %>% mutate(subid = fct_reorder(subid, -Income)), aes(x=subid, y=Income, col=start_age)) +
+  geom_point() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  scale_color_viridis_c() +
+  ylab('Income') +
+  ylim(0,1000000)
+
+```
+
+```{r}
+
+ggplot(families_cleaned, aes(x=subid, y=time, col=Race)) +
+  geom_point() + 
+  geom_line(aes(group=subid)) +
+  coord_flip() +
+  ylab('age in months') +
+  theme(legend.position='bottom')
+
+```
+
+
+```{r}
+
+ggplot(families_cleaned, aes(x=subid, y=time, col=Siblings)) +
+  geom_point(alpha=.8) +
+  # theme_few() 
+  geom_line(aes(group=subid)) +
+  coord_flip() +
+  ylab('age in months') +
+  xlab('# of kids') +
+  theme(legend.position='bottom')
+
+```

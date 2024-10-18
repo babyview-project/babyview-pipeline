@@ -1,0 +1,569 @@
+2023-11-21 10:28:47,166 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data2/ziyxiang/bv_tmp/raw/BabyView_Bing/02490001/07/14/2023/02490001_GX030002_07.14.2023_2023-07-14-19:07:06.MP4 -fACCL -a | tee /data2/ziyxiang/bv_tmp/processed/BabyView_Bing/02490001/GX030002/ACCL_meta.txt
+Error message: None
+2023-11-22 12:41:38,159 - ERROR - Error executing command: ffmpeg -i /data2/ziyxiang/bv_tmp/raw/BabyView_Bing/02950001/07/19/2023/02950001_GX010006_07.19.2023_2023-07-20-05:02:10.MP4 -vcodec libx264 -crf 28 /data2/ziyxiang/bv_tmp/processed/BabyView_Bing/02950001/GX010006/02950001_GX010006_07.19.2023_2023-07-20-05:02:10.MP4
+Error message: None
+2023-11-3 07:41:38,189 - ERROR - Error executing command: ffmpeg -i /data2/ziyxiang/bv_tmp/raw/BabyView_Main/00430001/By_Date/10/02/2023-10/08/2023/00430001_GX040041_10.02.2023-10.08.2023_10.06.2023
+error: /data2/ziyxiang/bv_tmp/raw/BabyView_Main/00430001/By_Date/10/02/2023-10/08/2023/00430001_GX040041_10.02.2023-10.08.2023_10.06.2023-NA.MP4 is an invalid MP4/MOV or it has no GPMF data2023-11-30 10:31:40,702 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data2/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX040003__2023-11-29-17:14:18.MP4 -fACCL -a | tee /data2/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX040003/ACCL_meta.txt
+2023-11-30 12:48:48,377 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data2/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX040003__2023-11-29-17:14:18.MP4 -fACCL -a | tee /data2/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX040003/ACCL_meta.txt
+Error message: error: /data2/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX040003__2023-11-29-17:14:18.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-11-30 15:50:16,795 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data2/ziyxiang/bv_tmp/raw/BabyView_Main/00500001/By_Date/11/20/2023-11/26/2023/00500001_GX040040_11.20.2023-11.26.2023_2023-11-27-01:51:33.MP4 -fACCL -a | tee /data2/ziyxiang/bv_tmp/processed/BabyView_Main/00500001/GX040040/ACCL_meta.txt
+Error message: error: /data2/ziyxiang/bv_tmp/raw/BabyView_Main/00500001/By_Date/11/20/2023-11/26/2023/00500001_GX040040_11.20.2023-11.26.2023_2023-11-27-01:51:33.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-11-30 17:40:06,112 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data2/ziyxiang/bv_tmp/raw/BabyView_Main/00430001/By_Date/09/18/2023-09/24/2023/00430001_GX040036_09.18.2023-09.24.2023_09.23.2023-8:07am.MP4 -fACCL -a | tee /data2/ziyxiang/bv_tmp/processed/BabyView_Main/00430001/GX040036/ACCL_meta.txt
+Error message: error: /data2/ziyxiang/bv_tmp/raw/BabyView_Main/00430001/By_Date/09/18/2023-09/24/2023/00430001_GX040036_09.18.2023-09.24.2023_09.23.2023-8:07am.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-11-30 18:07:37,287 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data2/ziyxiang/bv_tmp/raw/BabyView_Main/00430001/By_Date/09/11/2023-09/17/2023/00430001_GX040034_09.11.2023-09.17.2023_09.16.2023-NA.MP4 -fACCL -a | tee /data2/ziyxiang/bv_tmp/processed/BabyView_Main/00430001/GX040034/ACCL_meta.txt
+Error message: error: /data2/ziyxiang/bv_tmp/raw/BabyView_Main/00430001/By_Date/09/11/2023-09/17/2023/00430001_GX040034_09.11.2023-09.17.2023_09.16.2023-NA.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-01 00:07:28,707 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX030003_(1)__2023-12-01-04:00:10.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX030003 (1)/ACCL_meta.txt
+Error message: b'/bin/sh: 1: Syntax error: "(" unexpected\n'
+2023-12-01 00:08:41,144 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX020003_(1)__2023-12-01-04:44:34.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX020003 (1)/ACCL_meta.txt
+Error message: b'/bin/sh: 1: Syntax error: "(" unexpected\n'
+2023-12-01 00:09:55,005 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX010003_(1)__2023-12-01-04:22:49.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX010003 (1)/ACCL_meta.txt
+Error message: b'/bin/sh: 1: Syntax error: "(" unexpected\n'
+2023-12-01 00:10:16,632 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX040003__2023-11-29-17:14:18.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX040003/ACCL_meta.txt
+Error message: error: /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX040003__2023-11-29-17:14:18.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-01 00:11:15,520 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00500001/By_Date/11/20/2023-11/26/2023/00500001_GX040040_11.20.2023-11.26.2023_2023-11-27-01:51:33.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00500001/GX040040/ACCL_meta.txt
+Error message: error: /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00500001/By_Date/11/20/2023-11/26/2023/00500001_GX040040_11.20.2023-11.26.2023_2023-11-27-01:51:33.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-01 00:12:50,969 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00430001/By_Date/09/18/2023-09/24/2023/00430001_GX040036_09.18.2023-09.24.2023_09.23.2023-8:07am.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00430001/GX040036/ACCL_meta.txt
+Error message: error: /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00430001/By_Date/09/18/2023-09/24/2023/00430001_GX040036_09.18.2023-09.24.2023_09.23.2023-8:07am.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-01 00:41:29,213 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/08/28/2023-09/03/2023/00720001_GX030014_08.28.2023-09.03.2023_07.08.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX030014/00720001_GX030014_08.28.2023-09.03.2023_07.08.2023-NA.MP4
+Error message: None
+2023-12-01 00:43:05,474 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/08/28/2023-09/03/2023/00720001_GX020014_08.28.2023-09.03.2023_07.08.2023-NA.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX020014/ACCL_meta.txt
+Error message: error: /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/08/28/2023-09/03/2023/00720001_GX020014_08.28.2023-09.03.2023_07.08.2023-NA.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-01 00:46:18,269 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/08/28/2023-09/03/2023/00720001_GX010014_08.28.2023-09.03.2023_07.08.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX010014/00720001_GX010014_08.28.2023-09.03.2023_07.08.2023-NA.MP4
+Error message: None
+2023-12-01 00:49:36,641 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/08/28/2023-09/03/2023/00720001_GX020013_08.28.2023-09.03.2023_07.07.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX020013/00720001_GX020013_08.28.2023-09.03.2023_07.07.2023-NA.MP4
+Error message: None
+2023-12-01 00:52:05,988 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/08/28/2023-09/03/2023/00720001_GX010013_08.28.2023-09.03.2023_07.07.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX010013/00720001_GX010013_08.28.2023-09.03.2023_07.07.2023-NA.MP4
+Error message: None
+2023-12-01 01:22:01,253 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/07/10/2023-07/16/2023/00720001_GX040015_07.10.2023-07.16.2023_07.09.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX040015/00720001_GX040015_07.10.2023-07.16.2023_07.09.2023-NA.MP4
+Error message: None
+2023-12-01 01:44:53,450 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/08/14/2023-08/20/2023/00720001_GX040009_08.14.2023-08.20.2023_06.25.2023-12:13pm.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX040009/00720001_GX040009_08.14.2023-08.20.2023_06.25.2023-12:13pm.MP4
+Error message: None
+2023-12-01 03:41:26,088 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/07/17/2023-07/23/2023/00720001_GX020003_07.17.2023-07.23.2023_07.22.2023-8:30pm.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX020003/00720001_GX020003_07.17.2023-07.23.2023_07.22.2023-8:30pm.MP4
+Error message: None
+2023-12-01 04:28:53,653 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/07/03/2023-07/09/2023/00720001_GX040013_07.03.2023-07.09.2023_07.07.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX040013/00720001_GX040013_07.03.2023-07.09.2023_07.07.2023-NA.MP4
+Error message: None
+2023-12-01 04:38:00,062 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/07/03/2023-07/09/2023/00720001_GX020013_07.03.2023-07.09.2023_07.07.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX020013/00720001_GX020013_07.03.2023-07.09.2023_07.07.2023-NA.MP4
+Error message: None
+2023-12-01 04:40:06,384 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/07/03/2023-07/09/2023/00720001_GX010013_07.03.2023-07.09.2023_07.07.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX010013/00720001_GX010013_07.03.2023-07.09.2023_07.07.2023-NA.MP4
+Error message: None
+2023-12-01 05:01:28,241 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/06/26/2023-07/02/2023/00720001_GX040011_06.26.2023-07.02.2023_06.28.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX040011/00720001_GX040011_06.26.2023-07.02.2023_06.28.2023-NA.MP4
+Error message: None
+2023-12-01 05:29:31,947 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/06/26/2023-07/02/2023/00720001_GX030010_06.26.2023-07.02.2023_06.26.2023-4:23pm.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX030010/00720001_GX030010_06.26.2023-07.02.2023_06.26.2023-4:23pm.MP4
+Error message: None
+2023-12-01 05:57:22,439 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/06/19/2023-06/25/2023/00720001_GX020009_06.19.2023-06.25.2023_06.25.2023-12:13pm.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX020009/00720001_GX020009_06.19.2023-06.25.2023_06.25.2023-12:13pm.MP4
+Error message: None
+2023-12-01 10:32:31,251 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX030003_(1)__2023-12-01-04:00:10.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX030003 (1)/ACCL_meta.txt
+Error message: b'/bin/sh: 1: Syntax error: "(" unexpected\n'
+2023-12-01 10:33:45,341 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX020003_(1)__2023-12-01-04:44:34.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX020003 (1)/ACCL_meta.txt
+Error message: b'/bin/sh: 1: Syntax error: "(" unexpected\n'
+2023-12-01 10:35:01,368 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX010003_(1)__2023-12-01-04:22:49.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX010003 (1)/ACCL_meta.txt
+Error message: b'/bin/sh: 1: Syntax error: "(" unexpected\n'
+2023-12-01 10:35:26,986 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX040003__2023-11-29-17:14:18.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX040003/ACCL_meta.txt
+Error message: error: /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX040003__2023-11-29-17:14:18.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-01 10:37:07,254 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00430001/By_Date/09/18/2023-09/24/2023/00430001_GX040036_09.18.2023-09.24.2023_09.23.2023-8:07am.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00430001/GX040036/ACCL_meta.txt
+Error message: error: /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00430001/By_Date/09/18/2023-09/24/2023/00430001_GX040036_09.18.2023-09.24.2023_09.23.2023-8:07am.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-01 10:46:24,338 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX030003_(1)__2023-12-01-04:00:10.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX030003 (1)/ACCL_meta.txt
+Error message: b'/bin/sh: 1: Syntax error: "(" unexpected\n'
+2023-12-01 10:47:39,570 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX020003_(1)__2023-12-01-04:44:34.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX020003 (1)/ACCL_meta.txt
+Error message: b'/bin/sh: 1: Syntax error: "(" unexpected\n'
+2023-12-01 10:48:55,010 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX010003_(1)__2023-12-01-04:22:49.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX010003 (1)/ACCL_meta.txt
+Error message: b'/bin/sh: 1: Syntax error: "(" unexpected\n'
+2023-12-01 10:49:17,158 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX040003__2023-11-29-17:14:18.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX040003/ACCL_meta.txt
+Error message: error: /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX040003__2023-11-29-17:14:18.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-01 10:50:51,191 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00430001/By_Date/09/18/2023-09/24/2023/00430001_GX040036_09.18.2023-09.24.2023_09.23.2023-8:07am.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00430001/GX040036/ACCL_meta.txt
+Error message: error: /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00430001/By_Date/09/18/2023-09/24/2023/00430001_GX040036_09.18.2023-09.24.2023_09.23.2023-8:07am.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-01 10:52:48,913 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/08/28/2023-09/03/2023/00720001_GX030014_08.28.2023-09.03.2023_07.08.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX030014/00720001_GX030014_08.28.2023-09.03.2023_07.08.2023-NA.MP4
+Error message: None
+2023-12-01 10:54:18,955 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/08/28/2023-09/03/2023/00720001_GX020014_08.28.2023-09.03.2023_07.08.2023-NA.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX020014/ACCL_meta.txt
+Error message: error: /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/08/28/2023-09/03/2023/00720001_GX020014_08.28.2023-09.03.2023_07.08.2023-NA.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-01 10:57:25,668 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/08/28/2023-09/03/2023/00720001_GX010014_08.28.2023-09.03.2023_07.08.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX010014/00720001_GX010014_08.28.2023-09.03.2023_07.08.2023-NA.MP4
+Error message: None
+2023-12-01 11:00:39,761 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/08/28/2023-09/03/2023/00720001_GX020013_08.28.2023-09.03.2023_07.07.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX020013/00720001_GX020013_08.28.2023-09.03.2023_07.07.2023-NA.MP4
+Error message: None
+2023-12-01 11:03:06,780 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/08/28/2023-09/03/2023/00720001_GX010013_08.28.2023-09.03.2023_07.07.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX010013/00720001_GX010013_08.28.2023-09.03.2023_07.07.2023-NA.MP4
+Error message: None
+2023-12-01 11:04:45,624 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/07/10/2023-07/16/2023/00720001_GX040015_07.10.2023-07.16.2023_07.09.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX040015/00720001_GX040015_07.10.2023-07.16.2023_07.09.2023-NA.MP4
+Error message: None
+2023-12-01 11:09:22,713 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/08/14/2023-08/20/2023/00720001_GX040009_08.14.2023-08.20.2023_06.25.2023-12:13pm.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX040009/00720001_GX040009_08.14.2023-08.20.2023_06.25.2023-12:13pm.MP4
+Error message: None
+2023-12-01 11:11:50,621 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/07/17/2023-07/23/2023/00720001_GX020003_07.17.2023-07.23.2023_07.22.2023-8:30pm.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX020003/00720001_GX020003_07.17.2023-07.23.2023_07.22.2023-8:30pm.MP4
+Error message: None
+2023-12-01 11:15:44,318 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/07/03/2023-07/09/2023/00720001_GX040013_07.03.2023-07.09.2023_07.07.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX040013/00720001_GX040013_07.03.2023-07.09.2023_07.07.2023-NA.MP4
+Error message: None
+2023-12-01 11:19:30,449 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/07/03/2023-07/09/2023/00720001_GX020013_07.03.2023-07.09.2023_07.07.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX020013/00720001_GX020013_07.03.2023-07.09.2023_07.07.2023-NA.MP4
+Error message: None
+2023-12-01 11:21:29,908 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/07/03/2023-07/09/2023/00720001_GX010013_07.03.2023-07.09.2023_07.07.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX010013/00720001_GX010013_07.03.2023-07.09.2023_07.07.2023-NA.MP4
+Error message: None
+2023-12-01 11:23:24,135 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/06/26/2023-07/02/2023/00720001_GX050011_06.26.2023-07.02.2023_06.28.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX050011/00720001_GX050011_06.26.2023-07.02.2023_06.28.2023-NA.MP4
+Error message: None
+2023-12-01 11:25:56,128 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/06/26/2023-07/02/2023/00720001_GX040011_06.26.2023-07.02.2023_06.28.2023-NA.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX040011/00720001_GX040011_06.26.2023-07.02.2023_06.28.2023-NA.MP4
+Error message: None
+2023-12-01 11:28:32,496 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/06/26/2023-07/02/2023/00720001_GX030010_06.26.2023-07.02.2023_06.26.2023-4:23pm.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX030010/00720001_GX030010_06.26.2023-07.02.2023_06.26.2023-4:23pm.MP4
+Error message: None
+2023-12-01 11:32:00,619 - ERROR - Error executing command: ffmpeg -i /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00720001/By_Date/06/19/2023-06/25/2023/00720001_GX020009_06.19.2023-06.25.2023_06.25.2023-12:13pm.MP4 -vcodec libx264 -crf 28 /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00720001/GX020009/00720001_GX020009_06.19.2023-06.25.2023_06.25.2023-12:13pm.MP4
+Error message: None
+2023-12-02 02:42:38,471 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400001/By_Date/10/09/2023-10/15/2023/00400001_GX030090_1_10.09.2023-10.15.2023_10.09.2023-5:32pm.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00400001/GX030090_1/ACCL_meta.txt
+Error message: error: /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400001/By_Date/10/09/2023-10/15/2023/00400001_GX030090_1_10.09.2023-10.15.2023_10.09.2023-5:32pm.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-02 08:44:40,226 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400001/By_Date/09/11/2023-09/17/2023/00400001_GX030071_09.11.2023-09.17.2023_09.17.2023-4:26pm.MP4 -fACCL -a | tee /data-tmp/ziyxiang/bv_tmp/processed/BabyView_Main/00400001/GX030071/ACCL_meta.txt
+Error message: error: /data-tmp/ziyxiang/bv_tmp/raw/BabyView_Main/00400001/By_Date/09/11/2023-09/17/2023/00400001_GX030071_09.11.2023-09.17.2023_09.17.2023-4:26pm.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+
+
+#@TODO: repeat
+2023-12-02 15:37:21,353 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX030003_(1)__2023-12-01-04:00:10.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX030003 (1)/ACCL_meta.txt
+Error message: b'/bin/sh: 1: Syntax error: "(" unexpected\n'
+2023-12-02 15:38:49,853 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX020003_(1)__2023-12-01-04:44:34.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX020003 (1)/ACCL_meta.txt
+Error message: b'/bin/sh: 1: Syntax error: "(" unexpected\n'
+2023-12-02 15:40:18,710 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX010003_(1)__2023-12-01-04:22:49.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX010003 (1)/ACCL_meta.txt
+Error message: b'/bin/sh: 1: Syntax error: "(" unexpected\n'
+2023-12-02 15:40:39,587 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX040003__2023-11-29-17:14:18.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00400003/GX040003/ACCL_meta.txt
+Error message: error: /data/ziyxiang/bv_tmp/raw/BabyView_Main/00400003/By_Date/00400003_GX040003__2023-11-29-17:14:18.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-02 19:47:41,588 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00400001/By_Date/10/09/2023-10/15/2023/00400001_GX030090_1_10.09.2023-10.15.2023_10.09.2023-5:32pm.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00400001/GX030090_1/ACCL_meta.txt
+Error message: error: /data/ziyxiang/bv_tmp/raw/BabyView_Main/00400001/By_Date/10/09/2023-10/15/2023/00400001_GX030090_1_10.09.2023-10.15.2023_10.09.2023-5:32pm.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-02 19:49:17,480 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00400001/By_Date/09/11/2023-09/17/2023/00400001_GX030071_09.11.2023-09.17.2023_09.17.2023-4:26pm.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00400001/GX030071/ACCL_meta.txt
+Error message: error: /data/ziyxiang/bv_tmp/raw/BabyView_Main/00400001/By_Date/09/11/2023-09/17/2023/00400001_GX030071_09.11.2023-09.17.2023_09.17.2023-4:26pm.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-03 03:27:44,582 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00400001/By_Date/08/07/2023-08/13/2023/00400001_GX010052_08.07.2023-08.13.2023_NA-NA.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00400001/GX010052/ACCL_meta.txt
+Error message: error: /data/ziyxiang/bv_tmp/raw/BabyView_Main/00400001/By_Date/08/07/2023-08/13/2023/00400001_GX010052_08.07.2023-08.13.2023_NA-NA.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-03 03:27:45,674 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00400001/By_Date/08/07/2023-08/13/2023/00400001_GX010050_08.07.2023-08.13.2023_NA-NA.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00400001/GX010050/ACCL_meta.txt
+Error message: error: /data/ziyxiang/bv_tmp/raw/BabyView_Main/00400001/By_Date/08/07/2023-08/13/2023/00400001_GX010050_08.07.2023-08.13.2023_NA-NA.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-03 03:27:46,717 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00400001/By_Date/08/07/2023-08/13/2023/00400001_GX010051_08.07.2023-08.13.2023_NA-NA.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00400001/GX010051/ACCL_meta.txt
+Error message: error: /data/ziyxiang/bv_tmp/raw/BabyView_Main/00400001/By_Date/08/07/2023-08/13/2023/00400001_GX010051_08.07.2023-08.13.2023_NA-NA.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-03 03:27:47,939 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00400001/By_Date/08/07/2023-08/13/2023/00400001_GX010053_08.07.2023-08.13.2023_NA-NA.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00400001/GX010053/ACCL_meta.txt
+Error message: error: /data/ziyxiang/bv_tmp/raw/BabyView_Main/00400001/By_Date/08/07/2023-08/13/2023/00400001_GX010053_08.07.2023-08.13.2023_NA-NA.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-03 15:49:21,659 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00820001/By_Date/07/31/2023-08/06/2023/00820001_GX030034_07.31.2023-08.06.2023_08.05.2023-NA.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00820001/GX030034/ACCL_meta.txt
+Error message: error: /data/ziyxiang/bv_tmp/raw/BabyView_Main/00820001/By_Date/07/31/2023-08/06/2023/00820001_GX030034_07.31.2023-08.06.2023_08.05.2023-NA.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-03 16:42:18,213 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00820001/By_Date/07/10/2023-07/16/2023/00820001_GX040027_07.10.2023-07.16.2023_07.16.2023-4:07pm.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00820001/GX040027/ACCL_meta.txt
+Error message: error: /data/ziyxiang/bv_tmp/raw/BabyView_Main/00820001/By_Date/07/10/2023-07/16/2023/00820001_GX040027_07.10.2023-07.16.2023_07.16.2023-4:07pm.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-03 17:17:53,654 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00820001/By_Date/07/03/2023-07/09/2023/00820001_GX040026_07.03.2023-07.09.2023_07.09.2023-8:37am.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00820001/GX040026/ACCL_meta.txt
+Error message: error: /data/ziyxiang/bv_tmp/raw/BabyView_Main/00820001/By_Date/07/03/2023-07/09/2023/00820001_GX040026_07.03.2023-07.09.2023_07.09.2023-8:37am.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-03 17:39:38,872 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00820001/By_Date/07/03/2023-07/09/2023/00820001_GX010025_07.03.2023-07.09.2023_07.06.2023-NA.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00820001/GX010025/ACCL_meta.txt
+Error message: error: /data/ziyxiang/bv_tmp/raw/BabyView_Main/00820001/By_Date/07/03/2023-07/09/2023/00820001_GX010025_07.03.2023-07.09.2023_07.06.2023-NA.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-03 20:22:29,635 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00820001/By_Date/05/15/2023-05/21/2023/00820001_GX040014_05.15.2023-05.21.2023_05.20.2023-NA.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00820001/GX040014/ACCL_meta.txt
+Error message: error: /data/ziyxiang/bv_tmp/raw/BabyView_Main/00820001/By_Date/05/15/2023-05/21/2023/00820001_GX040014_05.15.2023-05.21.2023_05.20.2023-NA.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-03 21:01:36,767 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00820001/By_Date/05/08/2023-05/14/2023/00820001_GX030014_05.08.2023-05.14.2023_05.11.2023-NA.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00820001/GX030014/ACCL_meta.txt
+Error message: error: /data/ziyxiang/bv_tmp/raw/BabyView_Main/00820001/By_Date/05/08/2023-05/14/2023/00820001_GX030014_05.08.2023-05.14.2023_05.11.2023-NA.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-03 22:33:55,742 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00820001/By_Date/04/10/2023-04/16/2023/00820001_GX020005_04.10.2023-04.16.2023_04.15.2023-NA.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00820001/GX020005/ACCL_meta.txt
+Error message: error: /data/ziyxiang/bv_tmp/raw/BabyView_Main/00820001/By_Date/04/10/2023-04/16/2023/00820001_GX020005_04.10.2023-04.16.2023_04.15.2023-NA.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-03 22:47:50,110 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00820001/By_Date/08/28/2023-09/03/2023/00820001_GX020036_08.28.2023-09.03.2023_09.03.2023-NA.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00820001/GX020036/ACCL_meta.txt
+Error message: error: /data/ziyxiang/bv_tmp/raw/BabyView_Main/00820001/By_Date/08/28/2023-09/03/2023/00820001_GX020036_08.28.2023-09.03.2023_09.03.2023-NA.MP4 is an invalid MP4/MOV or it has no GPMF data
+
+usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
+       -a - show all payloads
+       -g - show GPMF structure
+       -i - show index of the payload
+       -s - disable scaled data
+       -c - disable computed sample rates
+       -v - disable video framerate
+       -t - disable time of the payload
+       -fWXYZ - show only this fourCC , e.g. -fACCL (default) just -f for all
+       -h - this help
+       
+       ver 2.0
+
+2023-12-04 00:54:34,283 - ERROR - Error executing command: ../gpmf-parser/gpmf-parser /data/ziyxiang/bv_tmp/raw/BabyView_Main/00680001/By_Date/06/12/23-06/18/23/00680001_GX030061_06.12.23-06.18.23_06.17.2023-10:52am.MP4 -fACCL -a | tee /data/ziyxiang/bv_tmp/processed/BabyView_Main/00680001/GX030061/ACCL_meta.txt
+Error message: b'tee: /data/ziyxiang/bv_tmp/processed/BabyView_Main/00680001/GX030061/ACCL_meta.txt: No such file or directory\n'
