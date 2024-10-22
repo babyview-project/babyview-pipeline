@@ -117,10 +117,12 @@ class GoogleDriveDownloader:
                 status = row['Status']
                 date = row['Date']
                 time = row['Time']
-
+                # this is the date when the RAs manually processed the video, which can be processed by the pipeline
+                manual_process_date = row['date_processed']                               
+                
                 is_subject_id = True if self.args.subject_id == 'all' else subject_id == self.args.subject_id
                 # only process videos that have not been processed or have not been uploaded                
-                if not processed_date or status != 'Uploaded' and is_subject_id:
+                if (not processed_date or status != 'Uploaded') and is_subject_id and manual_process_date:
                     if 'LUNA' in video_id:
                         video_name = f'{video_id}.avi'
                     else:
@@ -146,7 +148,9 @@ class GoogleDriveDownloader:
                             'idx': idx+2, 'file_id': file_id, 'file_path': file_path, 
                             # need to add these information to the dictionary
                             'Processed_date': '', 'Status': 'not found', 'Duration': ''
-                        })                   
+                        })
+                else:
+                    logging.info(f'File {video_id} for {subject_id} cannot be processed at this time.')
 
             else:    # special processing for bing
                 subject_id = row['subject_id']
@@ -285,9 +289,9 @@ class GoogleDriveDownloader:
         self.spreadsheet_id = '1mAti9dBNUqgNQQIIsnPb5Hu59ovKCUh9LSYOcQvzt2U'  # session tracking sheet
         # which sheet to download
         if self.args.bv_type == 'luna':
-            self.range_name = 'Luna_V1_Corrected'
+            self.range_name = 'Luna_Round_2_Ongoing'
         elif self.args.bv_type == 'main':
-            self.range_name = 'Main_Release_1_Corrected'
+            self.range_name = 'Ongoing_data_collection'
         elif self.args.bv_type == 'bing':
             self.range_name = 'Bing'
                 
