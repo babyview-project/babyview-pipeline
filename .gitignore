@@ -4,3 +4,7 @@
 .RData
 .Ruserdata
 creds/
+/data/release_1.0
+.DS_Store
+data/.DS_Store
+enrollment_visualize/.DS_Store
