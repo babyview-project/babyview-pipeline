@@ -10556,3 +10556,15 @@ usage: ../gpmf-parser/gpmf-parser <file_with_GPMF> <optional features>
 2024-08-23 09:38:47,957 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_storage', 'babyview_main_raw', 'babyview_main_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
 2024-08-23 09:38:58,938 - root - ERROR - File ID not found for 00430001/By Date/06.19.2023-06.25.2023/GX010003.MP4
 2024-08-23 09:39:01,615 - root - ERROR - File ID not found for 00680001/By Date/07.17.2023-07.23.2023/GX010082.MP4
+2024-10-22 11:25:41,121 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2024-10-22 11:25:41,125 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2024-10-22 11:26:21,613 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2024-10-22 11:26:21,616 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2024-10-22 11:26:22,615 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_storage', 'babyview_bing_whisper', 'babyview_main_raw', 'babyview_main_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2024-10-22 11:28:09,577 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2024-10-22 11:28:09,581 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2024-10-22 11:28:10,995 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_storage', 'babyview_bing_whisper', 'babyview_main_raw', 'babyview_main_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2024-10-22 11:29:15,669 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2024-10-22 11:29:15,674 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2024-10-22 11:29:16,673 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_storage', 'babyview_bing_whisper', 'babyview_main_raw', 'babyview_main_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2024-10-22 11:29:16,679 - root - INFO - File GX010175 for 00400001 cannot be processed at this time.
