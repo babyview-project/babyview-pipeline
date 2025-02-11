@@ -75,7 +75,7 @@ class GoogleDriveDownloader:
         """ Takes a list of folder names and the file name then returns the file ID """        
         if self.args.bv_type == 'bing':
             folder_id = "1-ATtN-wZ_mVY3Hm8Q0DO9CVizBsAmY6D"            
-        elif self.args.bv_type in ['main', 'luna']:
+        elif self.args.bv_type in ['main', 'luna', 'main_corrected', 'luna_corrected']:
             folder_id = "1ZfVyOBqb2L-Sw0b5himyg_ysB6Mwb8bo"            
 
         kwargs = dict(
@@ -110,18 +110,11 @@ class GoogleDriveDownloader:
         # @TODO: Temporary selecting row ranges in different runs to process in parallel, 
         # with head, tail and         
         for idx, row in tqdm(self.datetime_tracking.iterrows()):
-            if self.args.bv_type in ['main', 'luna']:
+            if self.args.bv_type in ['main', 'luna', 'main_corrected', 'luna_corrected']:
                 subject_id = row['subject_id']
                 video_id = row['video_id']
-                week = row['Week']
-                processed_date = row['Processed_date']
-                status = row['Status']
+                week = row['Week']                
                 date = row['Date']
-                time = row['Time']
-                # this is the date when the RAs manually processed the video, which can be processed by the pipeline
-                manual_process_date = row['date_processed']                               
-
-                is_subject_id = True if self.args.subject_id == 'all' else subject_id == self.args.subject_id
                 # only process videos that have not been processed or have not been uploaded                
                 # if (not processed_date or status != 'Uploaded') and is_subject_id and manual_process_date:
                 if 'LUNA' in video_id:
@@ -144,7 +137,7 @@ class GoogleDriveDownloader:
                             'Processed_date': '', 'Status': '', 'Duration': ''
                         })
                 else:
-                    logging.error(f'File ID not found for {file_path}')
+                    logging.error(f'File ID not found for {file_path}')                    
                     downloading_file_info.append({
                         'idx': idx+2, 'file_id': file_id, 'file_path': file_path, 
                         # need to add these information to the dictionary
@@ -222,8 +215,12 @@ class GoogleDriveDownloader:
         # which sheet to download
         if self.args.bv_type == 'luna':
             self.range_name = 'Luna_Round_2_Ongoing'
+        elif self.args.bv_type == 'luna_corrected':
+            self.range_name = 'Luna_V1_Corrected'            
         elif self.args.bv_type == 'main':
             self.range_name = 'Ongoing_data_collection'
+        elif self.args.bv_type == 'main_corrected':
+            self.range_name = 'Main_Release_1_Corrected'
         elif self.args.bv_type == 'bing':
             self.range_name = 'Bing'
                 
@@ -267,7 +264,7 @@ class GoogleDriveDownloader:
         if 'By Date' in fname_infos:
             fname_infos.remove('By Date')
 
-        if self.args.bv_type in ['main', 'luna']:
+        if self.args.bv_type in ['main', 'luna', 'main_corrected', 'luna_corrected']:
             # with '/' to match the format in the sheet
             week = record_period.replace('.', '/')        
             date, time = self.get_week_date_time_from_sheet(self.datetime_tracking, subject_id, video_id, week)        
@@ -372,12 +369,12 @@ class GoogleDriveDownloader:
         
 
 
-    def download_videos_from_drive(self):
+    def download_videos_from_drive(self):        
         downloading_file_info  = self.get_downloading_file_paths()
 
         if self.args.bv_type == 'bing':            
             entry_point_folder_name = "BabyView_Bing"
-        elif self.args.bv_type in ['main', 'luna']:            
+        elif self.args.bv_type in ['main', 'luna', 'main_corrected', 'luna_corrected']:            
             entry_point_folder_name = "BabyView_Main"
 
         for i, video_info in enumerate(downloading_file_info):
@@ -402,7 +399,7 @@ class GoogleDriveDownloader:
             if raw_path:                
                 os.makedirs(processed_folder, exist_ok=True)
                 # LUNA avi videos do not have meta data, will just compress, but GoPro videos have metadata
-                if (self.args.bv_type == 'luna' and 'LUNA' in raw_path) or raw_path.endswith('LRV'):
+                if (self.args.bv_type in ['luna', 'luna_corrected'] and 'LUNA' in raw_path) or raw_path.endswith('LRV'):
                     video_ext = '.avi'
                     video_fname = self.compress_vid(raw_path, processed_folder)
                 else:
@@ -425,7 +422,7 @@ class GoogleDriveDownloader:
                     col_idx = columns_str_idx_dict['Upload_fname']
                     cell = f'{self.range_name}!{col_idx}{row_idx}'
                     if i and i % 60 == 0:
-                        time.sleep(60)
+                        time.sleep(120)
 
                     self.sheets_service.spreadsheets().values().update(
                         spreadsheetId=self.spreadsheet_id, range=cell, valueInputOption='RAW',
@@ -479,7 +476,7 @@ def main():
     # cred_folder = "/ccn2/u/ziyxiang/cloud_credentials/babyview"    
     cred_folder = "creds"
     parser = argparse.ArgumentParser(description="Download videos from cloud services")
-    parser.add_argument('--bv_type', type=str, default='main', choices=['main', 'bing', 'luna'],
+    parser.add_argument('--bv_type', type=str, default='main', choices=['main', 'bing', 'luna', 'luna_corrected', 'main_corrected'],
                         help='Babyview Main or Bing')
     # @TODO: temporarily to run multiple processes for each subject
     parser.add_argument('--subject_id', type=str, default='all', help='Subject ID to download videos for')
