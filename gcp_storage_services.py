@@ -43,7 +43,9 @@ class GCPStorageServices:
                      'raw_details': [],
                      'processed_details': [],
                      'zip_details': [],
-                     'bucket_create_failure': []}
+                     'file_deletion_details': [],
+                     'bucket_create_failure': [],
+                     }
 
     def upload_file_to_gcs(self, source_file_name, destination_path, gcp_bucket):
         try:
@@ -58,7 +60,7 @@ class GCPStorageServices:
 
             with open(source_file_name, "rb") as fh:
                 progress_io = ProgressBytesIO(fh, pbar)
-                blob.upload_from_file(progress_io, num_retries=3, timeout=600)
+                blob.upload_from_file(progress_io, timeout=600)
 
             pbar.close()            
             msg = f"{source_file_name} Upload Completed To {gcp_bucket}/{destination_path}."
@@ -69,6 +71,31 @@ class GCPStorageServices:
 
         print(msg)
         return msg, success
+
+    def delete_blobs_with_substring(self, bucket_name, file_substring):
+        try:
+            # Get the bucket containing the blob
+            bucket = self.client.bucket(bucket_name)
+
+            # List all blobs in the bucket
+            blobs = bucket.list_blobs()
+
+            # Collect blobs that match the substring
+            matched_blobs = [blob for blob in blobs if file_substring in blob.name]
+
+            if not matched_blobs:
+                return f"No {file_substring} in {bucket_name}."
+
+            # Delete matched blobs and collect their names
+            deleted_blob_names = []
+            for blob in matched_blobs:
+                deleted_blob_names.append(blob.name)
+                blob.delete()
+
+            return f"{deleted_blob_names} has been removed from the {bucket_name}."
+        except Exception as e:
+            return f"{file_substring} in {bucket_name}. {e}"
+
 
     def upload_dict_to_gcs(self, data: dict, bucket_name, filename):
         try:

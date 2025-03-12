@@ -2,9 +2,11 @@ google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
 google-cloud-storage
-numpy
-moviepy
-pandas
-tqdm
-matplotlib
+numpy~=2.2.2
+moviepy~=2.1.2
+pandas~=2.2.3
+tqdm~=4.67.1
+matplotlib~=3.10.0
 google-cloud-storage
+gspread~=6.1.4
+python-dateutil~=2.9.0.post0
