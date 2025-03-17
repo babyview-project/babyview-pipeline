@@ -753,8 +753,10 @@ def main():
     # cred_folder = "/ccn2/u/ziyxiang/cloud_credentials/babyview"
     cred_folder = "creds"
     parser = argparse.ArgumentParser(description="Download videos from cloud services")
-    parser.add_argument('--bv_type', type=str, default='bing', choices=['main', 'bing', 'luna'],
+    parser.add_argument('--bv_type', type=str, default='main', choices=['main', 'bing', 'luna'],
                         help='Babyview Main or Bing')
+    parser.add_argument('--tracking_sheet_idx_start_stop', type=int, nargs=2, default=None,
+                        help='Only use this when processing a range of vids from tracking sheet')
     # @TODO: temporarily to run multiple processes for each subject
     parser.add_argument('--subject_id', type=str, default='all', help='Subject ID to download videos for')
     parser.add_argument('--video_root', type=str, default=settings.video_root)
@@ -775,7 +777,11 @@ def main():
             print("⚠️ Invalid input. Please enter 'yes' or 'no'.")
 
     downloader = GoogleDriveDownloader(args)
-    downloader.download_videos_from_drive(idx_start=435, idx_stop=435)
+    if args.tracking_sheet_idx_start_stop:
+        downloader.download_videos_from_drive(idx_start=args.tracking_sheet_idx_start_stop[0], idx_stop=args.tracking_sheet_idx_start_stop[1])
+    else:
+        downloader.download_videos_from_drive()
+
     # msg = storage_client_instance.delete_blobs_with_substring(bucket_name="babyview_main_storage",
     #                                                           file_substring=['00370002_2024-12-22_1_30c80c7f1d','00370002_2024-12-22_1_44855f8157','00370002_2024-12-22_1_2ca1c36d3c','00370002_2024-12-22_1_e6595eb977','00370002_2024-12-22_1_47168d4275','00370002_2024-12-22_1_2e21ca2d16'])
     # print(msg)
