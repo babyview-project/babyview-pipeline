@@ -105,17 +105,20 @@ class GoogleDriveDownloader:
 
         return items[0]['id']
 
-    def get_downloading_file_paths(self) -> list:
+    def get_downloading_file_paths(self, idx_start=None, idx_stop=None) -> list:
         downloading_file_info = []
         # @TODO: Temporary selecting row ranges in different runs to process in parallel, 
         # with head, tail and 
         for idx, row in tqdm(self.datetime_tracking.iterrows()):  #.iloc[1063: 2000].iterrows()):
+            if idx_start and idx_stop:
+                if idx < idx_start or idx > idx_stop:
+                    continue
             subject_id = row['subject_id']
             video_id = row['video_id']
             processed_date = row['Processed_date']
             status = row['Status']
             date = row['Date']
-            gcp_name = row['new_name']
+            current_gcp_name = row['new_name']
             file_id = None
             file_path = None
             session_num = video_id[3] if len(video_id) > 4 else 'NA'
@@ -170,7 +173,8 @@ class GoogleDriveDownloader:
                 downloading_file_info.append({
                     'idx': idx + 2, 'file_id': file_id, 'file_path': file_path,
                     'subject_id': subject_id, 'date': date_formatted, 'session_num': session_num,
-                    'uniq_id': uniq_id, 'gcp_name': gcp_name, 'new_location_raw': '',
+                    'uniq_id': uniq_id, 'current_gcp_name': current_gcp_name, 'is_name_change_needed': True if status and status.lower() in ['update', 'delete'] else False,
+                    'new_location_raw': '',
                     'new_location_storage_zip': '', 'new_location_storage_mp4': '',
                     # need to add these information to the dictionary
                     'Processed_date': '', 'Status': '', 'Duration': ''
@@ -179,12 +183,15 @@ class GoogleDriveDownloader:
                 logging.error(f'File ID not found for {file_path}')
                 downloading_file_info.append({
                     'idx': idx + 2, 'file_id': file_id, 'file_path': file_path,
-                    'subject_id': subject_id, 'date': date_formatted, 'session_num': session_num,
-                    'uniq_id': uniq_id, 'gcp_name': gcp_name,'new_location_raw': '',
+                    'subject_id': subject_id, 'date': None, 'session_num': None,
+                    'uniq_id': None, 'current_gcp_name': None, 'is_name_change_needed': False,
+                    'new_location_raw': '',
                     'new_location_storage_zip': '', 'new_location_storage_mp4': '',
                     # need to add these information to the dictionary
                     'Processed_date': '', 'Status': 'not found', 'Duration': ''
                 })
+            if idx == idx_stop:
+                return downloading_file_info
 
         return downloading_file_info
 
@@ -194,7 +201,6 @@ class GoogleDriveDownloader:
             meta_path = os.path.join(output_path, f'{meta}_meta.txt')
             print(video_path, meta_path)
             cmd = f'../gpmf-parser/gpmf-parser {video_path} -f{meta} -a | tee {meta_path}'
-
             try:
                 result = subprocess.run(cmd, shell=True, check=True, capture_output=True, timeout=120)
                 try:
@@ -261,8 +267,10 @@ class GoogleDriveDownloader:
         if fname.endswith(('.MP4', '.mp4', '.avi')):
             output_name = fname if fname.lower().endswith('.mp4') else fname.replace('.avi', '.MP4')
             output_path = os.path.join(output_folder, output_name)
-            cmd = f'ffmpeg -i "{video_path}" -vcodec h264_nvenc -cq 30 "{output_path}"'  # this is what we use across all videos
-            # cmd = f'ffmpeg -i "{video_path}" -vcodec libx264 -crf 28 "{output_path}"'
+            if settings.is_h264_nvenc_available:
+                cmd = f'ffmpeg -i "{video_path}" -vcodec h264_nvenc -cq 30 "{output_path}"'  # this is what we use across all videos
+            else:
+                cmd = f'ffmpeg -i "{video_path}" -vcodec libx264 -crf 28 "{output_path}"'
 
         elif fname.endswith('.LRV'):
             output_name = fname.replace('.LRV', '.MP4')
@@ -282,7 +290,7 @@ class GoogleDriveDownloader:
     def sheet_to_dataframe(self, range_name=None):
         # THESE ARE THE HEADERS THAT ARE REQUIRED IN THE SHEET for the pipeline
         self.required_headers = {'Processed_date', 'Status', 'Duration', 'old_name', 'new_name',
-                                 'new_location_raw','new_location_storage_zip', 'new_location_storage_mp4'}
+                                 'new_location_raw', 'new_location_storage_zip', 'new_location_storage_mp4'}
         self.spreadsheet_id = '1mAti9dBNUqgNQQIIsnPb5Hu59ovKCUh9LSYOcQvzt2U'  # session tracking sheet
         # which sheet to download
         if self.args.bv_type == 'luna':
@@ -443,10 +451,11 @@ class GoogleDriveDownloader:
         # returning file_id, path, subject_id, date, session_num, uniq_id, Processed_date, Status, Duration.
         # gcp_name,
         # Added check on the date, NA if date is not valid.
-        if settings.test_video_info:
-            downloading_file_info = settings.test_video_info
-        else:
-            downloading_file_info = self.get_downloading_file_paths()
+        # if settings.test_video_info:
+        #     downloading_file_info = settings.test_video_info
+        # else:
+        #     downloading_file_info = self.get_downloading_file_paths(idx_stop=2)
+        downloading_file_info = self.get_downloading_file_paths(idx_start=2390, idx_stop=2390)
 
         if self.args.bv_type == 'bing':
             entry_point_folder_name = "BabyView_Bing"
@@ -464,12 +473,10 @@ class GoogleDriveDownloader:
             logging.info(f"Creating {storage_bucket} bucket...")
             storage_client_instance.create_gcs_buckets(storage_bucket)
 
-        # print([item for item in downloading_file_info if item.get("file_id") is not None])
-
         for video_info in downloading_file_info:
             file_id = video_info['file_id']
             download_path = video_info['file_path']
-
+            print(video_info)
             # Step 1. Download the raw video file if file id is available
             if file_id:
                 download_path = os.path.join(self.args.video_root, entry_point_folder_name, download_path)
@@ -494,7 +501,7 @@ class GoogleDriveDownloader:
             if raw_path:
                 gcp_storage_raw_path = raw_path.split(f"{entry_point_folder_name}/")[1]
                 gcp_new_file_name = raw_path.split('/')[-1].split('.')[0]
-                print(gcp_storage_raw_path, raw_path, gcp_new_file_name)
+                print(f"Uploading {gcp_new_file_name} to {gcp_storage_raw_path}")
                 raw_upload_msg, raw_upload_success = storage_client_instance.upload_file_to_gcs(
                     source_file_name=raw_path,
                     destination_path=gcp_storage_raw_path,
@@ -513,11 +520,12 @@ class GoogleDriveDownloader:
                 # process meta data
                 if raw_upload_success:
                     # Check if the file has old gcp name existed, if so delete the old file from GCP bucket.
-                    if video_info['gcp_name'] and video_info['Status'].lower() in ['update', 'delete']:
+                    if video_info['current_gcp_name'] and video_info['is_name_change_needed']:
                         delete_blobs_msg = storage_client_instance.delete_blobs_with_substring(bucket_name=raw_bucket,
                                                                                                file_substring=
                                                                                                video_info[
-                                                                                                   'gcp_name'])
+                                                                                                   'current_gcp_name'])
+                        print(delete_blobs_msg)
                         storage_client_instance.logs['file_deletion_details'].append(delete_blobs_msg)
 
                     os.makedirs(processed_folder, exist_ok=True)
@@ -553,25 +561,26 @@ class GoogleDriveDownloader:
                             )
                             if processed_success:
                                 storage_client_instance.logs['processed_success'] += 1
-                                video_info['new_location_storage_mp4'] = f"gs://{storage_bucket}/{video_path}"
+                                video_info['new_location_storage_mp4'] = f"gs://{storage_bucket}/{video_path.split(common_folder)[-1]}"
                             else:
                                 storage_client_instance.logs['processed_failure'] += 1
                                 video_info['new_location_storage_mp4'] = "Processed_Vid_Upload_Failed"
 
                             if zip_success:
                                 storage_client_instance.logs['zip_success'] += 1
-                                video_info['new_location_storage_zip'] = f"gs://{storage_bucket}/{zip_path}"
+                                video_info['new_location_storage_zip'] = f"gs://{storage_bucket}/{zip_path.split(common_folder)[-1]}"
                             else:
                                 storage_client_instance.logs['zip_failure'] += 1
                                 video_info['new_location_storage_zip'] = "Zip_Upload_Failed"
                             if processed_success and zip_success:
                                 video_info['Status'] = 'Uploaded'
-                                if video_info['gcp_name'] and video_info['Status'].lower() in ['update', 'delete']:
+                                if video_info['current_gcp_name'] and video_info['is_name_change_needed']:
                                     delete_blobs_msg = storage_client_instance.delete_blobs_with_substring(
                                         bucket_name=storage_bucket,
                                         file_substring=
                                         video_info[
-                                            'gcp_name'])
+                                            'current_gcp_name'])
+                                    print(delete_blobs_msg)
                                     storage_client_instance.logs['file_deletion_details'].append(delete_blobs_msg)
                             else:
                                 video_info['Status'] = 'Partially Uploaded'
@@ -599,7 +608,7 @@ class GoogleDriveDownloader:
             # Step 5. Update the video info with the processed date and duration on the tracking sheet
             if gcp_new_file_name:
                 video_info['Processed_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                video_info['old_name'] = video_info['gcp_name']
+                video_info['old_name'] = video_info['current_gcp_name']
                 video_info['new_name'] = gcp_new_file_name
                 row_idx = video_info['idx']
                 columns = self.datetime_tracking.columns
@@ -610,7 +619,8 @@ class GoogleDriveDownloader:
                 end_index = list(columns).index("new_location_storage_mp4") + 1
                 columns_in_range = list(columns)[start_index:end_index]
                 range_name = f'{self.range_name}!{start_str_idx}{row_idx}:{end_str_idx}{row_idx}'
-                body = {'values': [[video_info[col] if col in self.required_headers else '' for col in columns_in_range]]}
+                body = {
+                    'values': [[video_info[col] if col in self.required_headers else '' for col in columns_in_range]]}
                 self.sheets_service.spreadsheets().values().update(
                     spreadsheetId=self.spreadsheet_id, range=range_name,
                     valueInputOption='RAW', body=body
@@ -758,7 +768,9 @@ def main():
 
     downloader = GoogleDriveDownloader(args)
     downloader.download_videos_from_drive()
-
+    # msg = storage_client_instance.delete_blobs_with_substring(bucket_name="babyview_main_storage",
+    #                                                           file_substring=['00370002_2024-12-22_1_30c80c7f1d','00370002_2024-12-22_1_44855f8157','00370002_2024-12-22_1_2ca1c36d3c','00370002_2024-12-22_1_e6595eb977','00370002_2024-12-22_1_47168d4275','00370002_2024-12-22_1_2e21ca2d16'])
+    # print(msg)
 
 if __name__ == '__main__':
     main()

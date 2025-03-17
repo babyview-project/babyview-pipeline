@@ -81,7 +81,12 @@ class GCPStorageServices:
             blobs = bucket.list_blobs()
 
             # Collect blobs that match the substring
-            matched_blobs = [blob for blob in blobs if file_substring in blob.name]
+            if isinstance(file_substring, str):
+                matched_blobs = [blob for blob in blobs if file_substring in blob.name]
+            elif isinstance(file_substring, list):
+                matched_blobs = [blob for blob in blobs if any(sub in blob.name for sub in file_substring)]
+            else:
+                return f"{file_substring} is not str or list"
 
             if not matched_blobs:
                 return f"No {file_substring} in {bucket_name}."
@@ -94,7 +99,7 @@ class GCPStorageServices:
 
             return f"{deleted_blob_names} has been removed from the {bucket_name}."
         except Exception as e:
-            return f"{file_substring} in {bucket_name}. {e}"
+            return f"Failed to remove {file_substring} from {bucket_name}. {e}"
 
 
     def upload_dict_to_gcs(self, data: dict, bucket_name, filename):
