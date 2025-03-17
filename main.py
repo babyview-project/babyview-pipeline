@@ -118,6 +118,7 @@ class GoogleDriveDownloader:
             processed_date = row['Processed_date']
             status = row['Status']
             date = row['Date']
+            black_out = row['Blackout Portions']
             current_gcp_name = row['new_name']
             file_id = None
             file_path = None
@@ -172,7 +173,7 @@ class GoogleDriveDownloader:
                 # on drive, the first content row starts at 2
                 downloading_file_info.append({
                     'idx': idx + 2, 'file_id': file_id, 'file_path': file_path,
-                    'subject_id': subject_id, 'date': date_formatted, 'session_num': session_num,
+                    'subject_id': subject_id, 'date': date_formatted, 'session_num': session_num, 'black_out': black_out,
                     'uniq_id': uniq_id, 'current_gcp_name': current_gcp_name, 'is_name_change_needed': True if status and status.lower() in ['update', 'delete'] else False,
                     'new_location_raw': '',
                     'new_location_storage_zip': '', 'new_location_storage_mp4': '',
@@ -183,7 +184,7 @@ class GoogleDriveDownloader:
                 logging.error(f'File ID not found for {file_path}')
                 downloading_file_info.append({
                     'idx': idx + 2, 'file_id': file_id, 'file_path': file_path,
-                    'subject_id': subject_id, 'date': None, 'session_num': None,
+                    'subject_id': subject_id, 'date': None, 'session_num': None, black_out: None,
                     'uniq_id': None, 'current_gcp_name': None, 'is_name_change_needed': False,
                     'new_location_raw': '',
                     'new_location_storage_zip': '', 'new_location_storage_mp4': '',
@@ -446,16 +447,13 @@ class GoogleDriveDownloader:
         version = 'v3' if service_type == 'drive' else 'v4'
         return build(service_type, version, credentials=creds)
 
-    def download_videos_from_drive(self):
+    def download_videos_from_drive(self, idx_start=None, idx_stop=None):
         # get a list of file info to be downloaded from tracking sheet
         # returning file_id, path, subject_id, date, session_num, uniq_id, Processed_date, Status, Duration.
         # gcp_name,
         # Added check on the date, NA if date is not valid.
-        # if settings.test_video_info:
-        #     downloading_file_info = settings.test_video_info
-        # else:
-        #     downloading_file_info = self.get_downloading_file_paths(idx_stop=2)
-        downloading_file_info = self.get_downloading_file_paths(idx_start=2390, idx_stop=2390)
+
+        downloading_file_info = self.get_downloading_file_paths(idx_start=idx_start, idx_stop=idx_stop)
 
         if self.args.bv_type == 'bing':
             entry_point_folder_name = "BabyView_Bing"
@@ -465,6 +463,7 @@ class GoogleDriveDownloader:
         # create raw and storage bucket if not exist.
         storage_bucket = f'{entry_point_folder_name}_storage'.lower()
         raw_bucket = f'{entry_point_folder_name}_raw'.lower()
+        black_out_bucket = f'{entry_point_folder_name}_blackout'.lower()
         if raw_bucket not in self.gcs_buckets:
             logging.info(f"Creating {raw_bucket} bucket...")
             storage_client_instance.create_gcs_buckets(raw_bucket)
@@ -472,6 +471,10 @@ class GoogleDriveDownloader:
         if storage_bucket not in self.gcs_buckets:
             logging.info(f"Creating {storage_bucket} bucket...")
             storage_client_instance.create_gcs_buckets(storage_bucket)
+
+        if black_out_bucket not in self.gcs_buckets:
+            logging.info(f"Creating {black_out_bucket} bucket...")
+            storage_client_instance.create_gcs_buckets(black_out_bucket)
 
         for video_info in downloading_file_info:
             file_id = video_info['file_id']
@@ -501,7 +504,10 @@ class GoogleDriveDownloader:
             if raw_path:
                 gcp_storage_raw_path = raw_path.split(f"{entry_point_folder_name}/")[1]
                 gcp_new_file_name = raw_path.split('/')[-1].split('.')[0]
-                print(f"Uploading {gcp_new_file_name} to {gcp_storage_raw_path}")
+                if video_info['black_out']:
+                    raw_bucket = black_out_bucket
+                print(f"Uploading {gcp_new_file_name} to {raw_bucket}/{gcp_storage_raw_path}")
+
                 raw_upload_msg, raw_upload_success = storage_client_instance.upload_file_to_gcs(
                     source_file_name=raw_path,
                     destination_path=gcp_storage_raw_path,
@@ -518,7 +524,7 @@ class GoogleDriveDownloader:
 
                 # Step 3. Extract meta from the raw video file and compress it, only process if raw upload is successful
                 # process meta data
-                if raw_upload_success:
+                if raw_upload_success and not video_info['black_out']:
                     # Check if the file has old gcp name existed, if so delete the old file from GCP bucket.
                     if video_info['current_gcp_name'] and video_info['is_name_change_needed']:
                         delete_blobs_msg = storage_client_instance.delete_blobs_with_substring(bucket_name=raw_bucket,
@@ -602,6 +608,8 @@ class GoogleDriveDownloader:
                         video_info['Status'] = 'Processed Upload failed'
                         print("Exception is", e)
 
+                elif video_info['black_out']:
+                    video_info['Status'] = 'Upload To Blackout'
                 else:
                     video_info['Status'] = 'Raw upload failed'
 
@@ -745,7 +753,7 @@ def main():
     # cred_folder = "/ccn2/u/ziyxiang/cloud_credentials/babyview"
     cred_folder = "creds"
     parser = argparse.ArgumentParser(description="Download videos from cloud services")
-    parser.add_argument('--bv_type', type=str, default='main', choices=['main', 'bing', 'luna'],
+    parser.add_argument('--bv_type', type=str, default='bing', choices=['main', 'bing', 'luna'],
                         help='Babyview Main or Bing')
     # @TODO: temporarily to run multiple processes for each subject
     parser.add_argument('--subject_id', type=str, default='all', help='Subject ID to download videos for')
@@ -767,7 +775,7 @@ def main():
             print("⚠️ Invalid input. Please enter 'yes' or 'no'.")
 
     downloader = GoogleDriveDownloader(args)
-    downloader.download_videos_from_drive()
+    downloader.download_videos_from_drive(idx_start=435, idx_stop=435)
     # msg = storage_client_instance.delete_blobs_with_substring(bucket_name="babyview_main_storage",
     #                                                           file_substring=['00370002_2024-12-22_1_30c80c7f1d','00370002_2024-12-22_1_44855f8157','00370002_2024-12-22_1_2ca1c36d3c','00370002_2024-12-22_1_e6595eb977','00370002_2024-12-22_1_47168d4275','00370002_2024-12-22_1_2e21ca2d16'])
     # print(msg)
