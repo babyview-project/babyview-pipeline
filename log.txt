@@ -38502,3 +38502,10 @@ Error message: None
 2025-03-17 14:42:25,546 - root - ERROR - File ID not found for None
 2025-03-17 14:42:25,546 - root - INFO - File GX010053 for 00240001 cannot be processed at this time.
 2025-03-17 14:42:25,546 - root - ERROR - File ID not found for None
+2025-03-17 15:52:38,766 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-17 15:52:38,769 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-17 15:52:39,718 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-17 15:52:40,212 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-17 15:52:41,983 - root - ERROR - File ID not found for 00400001/By Date/12.16.2024-12.22.2024/GX010107.MP4
+2025-03-17 15:52:41,986 - root - INFO - Creating babyview_main_blackout bucket...
+2025-03-17 15:52:42,801 - root - INFO - File id not available for None

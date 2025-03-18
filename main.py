@@ -44,7 +44,7 @@ ALL_METAS = [
 ]
 
 logging.basicConfig(
-    filename='error_log.txt', filemode='a',
+    filename=settings.error_log, filemode='a',
     format='%(asctime)s - %(levelname)s - %(message)s',
     level=logging.ERROR
 )
@@ -230,7 +230,7 @@ class GoogleDriveDownloader:
                 break
         # no need to compress if meta data extraction fails (video corrupted)
         if extract_success:
-            return self.get_highlight_and_device_id(video_path, output_path)
+            return self.get_highlight_and_device_id(video_path, settings.output_folder)
         else:
             return extract_success
 
@@ -338,7 +338,7 @@ class GoogleDriveDownloader:
     def download_file(self, service, file_id, file_path, video_info):
         directory, filename = os.path.split(file_path)
         video_id, extension = os.path.splitext(filename)
-        fname_infos = os.path.dirname(os.path.relpath(file_path, self.args.video_root)).split('/')
+        fname_infos = os.path.dirname(os.path.relpath(file_path, settings.video_root)).split('/')
         bv_main_folder = fname_infos[0]  # BabyView_Main, BabyView_Bing, BabyView_Play
         subject_id = fname_infos[1]
         # record_period = fname_infos[-1]
@@ -378,7 +378,7 @@ class GoogleDriveDownloader:
         os.makedirs(directory, exist_ok=True)
         raw_path = os.path.join(directory, file_name).replace(' ', '_')
         # folder to store processed video & meta data
-        processed_folder = os.path.join(self.args.output_folder, bv_main_folder, subject_id, video_id)
+        processed_folder = os.path.join(settings.output_folder, bv_main_folder, subject_id, video_id)
         if os.path.exists(raw_path):
             print(f"File already exists: {raw_path}")
             return raw_path, processed_folder
@@ -432,14 +432,14 @@ class GoogleDriveDownloader:
 
     def build_google_drive_service(self, service_type='drive'):
         creds = None
-        token_path = os.path.join(self.args.cred_folder, 'token.json')
+        token_path = os.path.join(settings.cred_folder, 'token.json')
         if os.path.exists(token_path):
             creds = Credentials.from_authorized_user_file(token_path, self.SCOPES)
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
-                cred_path = os.path.join(self.args.cred_folder, 'credentials.json')
+                cred_path = os.path.join(settings.cred_folder, 'credentials.json')
                 flow = InstalledAppFlow.from_client_secrets_file(cred_path, self.SCOPES)
                 creds = flow.run_local_server(port=self.args.port)
             with open(token_path, 'w') as token:
@@ -482,7 +482,7 @@ class GoogleDriveDownloader:
             print(video_info)
             # Step 1. Download the raw video file if file id is available
             if file_id:
-                download_path = os.path.join(self.args.video_root, entry_point_folder_name, download_path)
+                download_path = os.path.join(settings.video_root, entry_point_folder_name, download_path)
                 download_folder = os.path.dirname(download_path).replace('By Date', 'By_Date')
                 os.makedirs(download_folder, exist_ok=True)
                 try:
@@ -645,7 +645,7 @@ class GoogleDriveDownloader:
     def save_to_csv(self):
         csv_path = self.args.csv_path
         # remove video_root prefix from file paths
-        cleaned_paths = [(path.replace(self.args.video_root, ''), duration) for path, duration in
+        cleaned_paths = [(path.replace(settings.video_root, ''), duration) for path, duration in
                          self.video_durations.items()]
         new_data = pd.DataFrame(cleaned_paths, columns=['File Path', 'Duration (s)'])
         # if CSV exists, append new data to it
@@ -750,20 +750,18 @@ def miscellaneous_features():
 
 
 def main():
-    # cred_folder = "/ccn2/u/ziyxiang/cloud_credentials/babyview"
-    cred_folder = "creds"
     parser = argparse.ArgumentParser(description="Download videos from cloud services")
     parser.add_argument('--bv_type', type=str, default='main', choices=['main', 'bing', 'luna'],
                         help='Babyview Main or Bing')
-    parser.add_argument('--tracking_sheet_idx_start_stop', type=int, nargs=2, default=None,
-                        help='Only use this when processing a range of vids from tracking sheet')
     # @TODO: temporarily to run multiple processes for each subject
     parser.add_argument('--subject_id', type=str, default='all', help='Subject ID to download videos for')
-    parser.add_argument('--video_root', type=str, default=settings.video_root)
-    parser.add_argument('--csv_path', type=str, default='uploaded_videos.csv')
-    parser.add_argument('--cred_folder', type=str, default=cred_folder)
-    parser.add_argument('--output_folder', type=str, default=settings.output_folder)
-    parser.add_argument('--error_log', type=str, default='error_log.txt')
+    parser.add_argument('--tracking_sheet_idx_start_stop', type=int, nargs=2, default=None,
+                        help='Only use this when processing a range of vids from tracking sheet')
+    # parser.add_argument('--video_root', type=str, default=settings.video_root)
+    # parser.add_argument('--csv_path', type=str, default='uploaded_videos.csv')
+    # parser.add_argument('--cred_folder', type=str, default=settings.cred_folder)
+    # parser.add_argument('--output_folder', type=str, default=settings.output_folder)
+    # parser.add_argument('--error_log', type=str, default='error_log.txt')
     args = parser.parse_args()
     while True:
         user_input = input(f"You are now running in {'TEST' if settings.test_mode else 'PRODUCTION'} mode. Continue? "
