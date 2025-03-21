@@ -152,7 +152,7 @@ class VideoDuration:
 
     def build_google_drive_service(self, service_type='drive'):
         creds = None
-        token_path = os.path.join(self.args.cred_folder, 'token.json')
+        token_path = os.path.join(self.args.cred_folder, 'google_api_token.json')
         if os.path.exists(token_path):
             creds = Credentials.from_authorized_user_file(token_path, self.SCOPES)
         if not creds or not creds.valid:

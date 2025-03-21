@@ -8,7 +8,7 @@ from google.oauth2.credentials import Credentials
 import io
 import os
 
-# If modifying these SCOPES, delete the file token.json.
+# If modifying these SCOPES, delete the file google_api_token.json.
 SCOPES = ['https://www.googleapis.com/auth/drive']
 download_path = '/data/babyview/'
 DRIVE_ID = '0AJGltX6vgytGUk9PVA'
@@ -58,11 +58,11 @@ def recursive_search_and_download(service, folder_id, local_path):
 
 def main():
     creds = None
-    token_path = os.path.join('./token.json')
-    # The file token.json stores the user's access and refresh tokens, and is
+    token_path = os.path.join('./google_api_token.json')
+    # The file google_api_token.json stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first time.
-    if os.path.exists('./token.json'):
-        creds = Credentials.from_authorized_user_file('./token.json', SCOPES)
+    if os.path.exists('./google_api_token.json'):
+        creds = Credentials.from_authorized_user_file('./google_api_token.json', SCOPES)
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:

@@ -38509,3 +38509,55 @@ Error message: None
 2025-03-17 15:52:41,983 - root - ERROR - File ID not found for 00400001/By Date/12.16.2024-12.22.2024/GX010107.MP4
 2025-03-17 15:52:41,986 - root - INFO - Creating babyview_main_blackout bucket...
 2025-03-17 15:52:42,801 - root - INFO - File id not available for None
+2025-03-17 18:00:41,992 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-17 18:00:42,010 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-17 18:00:42,874 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-17 18:00:43,187 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_blackout', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-17 18:06:51,841 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-17 18:06:51,857 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-17 18:06:52,642 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-17 18:06:53,035 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_blackout', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-18 11:46:38,294 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 11:46:38,325 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 11:46:39,176 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-18 11:46:39,654 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_blackout', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-18 11:46:41,552 - root - ERROR - File ID not found for 00400001/By Date/12.16.2024-12.22.2024/GX010107.MP4
+2025-03-18 11:47:50,476 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 11:47:50,491 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 11:47:51,070 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-18 11:47:51,538 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_blackout', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-18 11:47:53,300 - root - ERROR - File ID not found for 00400001/By Date/12.16.2024-12.22.2024/GX010107.MP4
+2025-03-18 11:50:24,105 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 11:50:24,120 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 11:50:24,632 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-18 11:50:25,090 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_blackout', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-18 11:50:26,899 - root - ERROR - File ID not found for 00400001/By Date/12.16.2024-12.22.2024/GX010107.MP4
+2025-03-18 11:52:40,148 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 11:52:40,163 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 11:52:41,137 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-18 11:52:41,639 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_blackout', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-18 15:36:52,906 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 15:36:52,939 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 15:36:53,849 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-18 15:36:54,398 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_blackout', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-18 15:40:47,220 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 15:40:47,238 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 15:40:48,021 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-18 15:40:48,352 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_blackout', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-19 19:27:52,902 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-19 19:30:04,255 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-19 19:31:26,499 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-19 19:33:51,418 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 10:30:30,369 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 10:38:30,734 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 10:40:27,143 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 10:40:27,909 - root - ERROR - File ID not found for None
+2025-03-20 11:19:13,691 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 11:22:29,737 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 11:27:44,729 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 11:29:53,273 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 15:46:32,811 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 15:48:29,112 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 15:51:57,130 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 15:54:35,533 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 16:03:12,563 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0

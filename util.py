@@ -1,6 +1,4 @@
 import pytz
-
-from main import GoogleDriveDownloader
 import gspread
 import pandas as pd
 import uuid
@@ -328,7 +326,7 @@ def update_gcs_files(gcp_bucket, spreadsheet_name, sheet_name, update_sheet: boo
         return unconverted_files
 
 
-def move_matching_files(source_bucket, target_bucket, csv_file=None):
+def move_matching_files(source_bucket, target_bucket, csv_file=None, file_uniq_id=None):
     def load_csv_to_dataframe(csv_file_path):
         df = pd.read_csv(csv_file_path, encoding="utf-8")
         """Load the CSV file into a Pandas DataFrame and return the 'file_name' column as a set."""
@@ -342,10 +340,10 @@ def move_matching_files(source_bucket, target_bucket, csv_file=None):
         return set(df_filtered["file_name"].dropna())  # Drop NaN and convert to a set
 
     """Move matching files from one bucket to another, preserving the folder structure."""
+    blobs = source_bucket.list_blobs()  # Get all objects in the source bucket
     if csv_file:
         filenames_to_match = load_csv_to_dataframe(csv_file)
 
-        blobs = source_bucket.list_blobs()  # Get all objects in the source bucket
         for blob in blobs:
             file_name = blob.name.split("/")[-1]  # Extract just the filename
             if file_name in filenames_to_match:
@@ -370,5 +368,24 @@ def move_matching_files(source_bucket, target_bucket, csv_file=None):
                 # Delete the original file from the source bucket
                 blob.delete()
                 print(f"Deleted original: {blob.name}")
-    else:
-        pass
+    elif file_uniq_id:
+        msg = ''
+        try:
+            for blob in blobs:
+                # Check if the blob name contains the specified substring
+                if file_uniq_id in blob.name:
+                    # Copy the blob to the destination bucket
+                    new_blob = source_bucket.copy_blob(blob, target_bucket, blob.name)
+                    # Delete the original blob from the source bucket
+                    blob.delete()
+                    msg = msg + f"Moved {blob.name} from {source_bucket} to {target_bucket}. "
+            if msg:
+                success = True
+            else:
+                msg = f"No such file contains {file_uniq_id}"
+                success = False
+        except Exception as e:
+            msg = f"Failed to move file {file_uniq_id} from {source_bucket} to {target_bucket}."
+            success = False
+        return success, msg
+
