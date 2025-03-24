@@ -3,6 +3,7 @@ from datetime import datetime
 from dateutil import parser
 import re
 import os
+import pandas as pd
 
 
 class Video:
@@ -23,10 +24,17 @@ class Video:
     pipeline_run_date = None
     status = None
     duration = None
-    highlights = None
 
     gcp_bucket_name = None
     gcp_raw_location = None
+
+    meta_extract = None
+    highlights = None
+    device_id = None
+
+    compress_video_path = None
+    zipped_file_path = None
+
     gcp_storage_zip_location = None
     gcp_storage_video_location = None
 
@@ -39,9 +47,10 @@ class Video:
         self.date = video_info.get('date', None)
         self.start_time = video_info.get('start_time', None)
         self.logging_date = video_info.get('logging_date', None)
-        self.blackout_region = video_info.get('blackout_region', None)
-
-        self.pipeline_run_date = video_info.get('pipeline_run_date', None)
+        blackout_region = video_info.get('blackout_region', None)
+        pipeline_run_date = video_info.get('pipeline_run_date', None)
+        self.blackout_region = None if pd.isna(blackout_region) else blackout_region
+        self.pipeline_run_date = None if pd.isna(pipeline_run_date) else pipeline_run_date
         self.status = video_info.get('status', None)
         self.duration = video_info.get('duration_sec', None)
 
@@ -55,7 +64,7 @@ class Video:
         return {attr: getattr(self, attr) for attr in vars(self) if not attr.startswith("__")}
 
     def set_session_num(self):
-        if 'LUNA' in self.gopro_video_id:
+        if 'luna' in self.gopro_video_id.lower():
             self.session_num = self.gopro_video_id.split('_')[-1]
         else:
             self.session_num = self.gopro_video_id[3] if len(self.gopro_video_id) > 4 else None
@@ -69,7 +78,7 @@ class Video:
             return None
 
     def set_google_drive_video_name(self):
-        if 'LUNA' in self.gopro_video_id:
+        if 'luna' in self.gopro_video_id.lower():
             self.google_drive_video_name = f'{self.gopro_video_id}.avi'
         else:
             if self.gopro_video_id.startswith('GX'):

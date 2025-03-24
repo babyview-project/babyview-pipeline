@@ -72,10 +72,10 @@ class GoogleDriveDownloader:
         version = 'v3' if service_type == 'drive' else 'v4'
         return build(service_type, version, credentials=creds)
 
-    def get_downloading_file_paths(self, video_info_from_tracking: pandas.DataFrame) -> tuple:
+    def get_downloading_file_paths(self, video_info_from_tracking: pd.DataFrame) -> tuple:
         downloading_file_info = []
         errors = []
-
+        # for video_info in video_info_from_tracking:
         for _, video_info in video_info_from_tracking.iterrows():  # Iterate over DataFrame rows
             video = Video(video_info=video_info.to_dict())  # Convert row to dictionary
             error_msg = video.set_file_id_file_path(google_drive_service=self.drive_service)
@@ -89,6 +89,7 @@ class GoogleDriveDownloader:
 
     def download_file(self, local_raw_download_folder, video: Video):
         try:
+            print(f'Downloading {video.subject_id}_{video.gopro_video_id} to {local_raw_download_folder}.')
             request = self.drive_service.files().get_media(fileId=video.google_drive_file_id)
             fh = io.FileIO(local_raw_download_folder, 'wb')
             downloader = MediaIoBaseDownload(fh, request)
@@ -102,60 +103,55 @@ class GoogleDriveDownloader:
             return False, e
 
 
-
 class FileProcessor:
     video_raw_path = None
-    processed_folder_path = None
+    processed_folder = None
 
-    def __init__(self, video_path, processed_folder_path):
-        self.video_raw_path = video_path
-        self.processed_folder_path = processed_folder_path
+    def __init__(self, video_raw_path, processed_folder):
+        self.video_raw_path = video_raw_path
+        self.processed_folder = processed_folder
 
     def extract_meta(self):
-        extract_success = True
+        error_msg = None
+        output_text_list = []
         for meta in ALL_METAS:
-            meta_path = os.path.join(self.processed_folder_path, f'{meta}_meta.txt')
-            print(self.video_raw_path, meta_path)
+            meta_path = os.path.join(self.processed_folder, 'meta_data', f'{meta}_meta.txt')
             cmd = f'../gpmf-parser/gpmf-parser {self.video_raw_path} -f{meta} -a | tee {meta_path}'
             try:
                 result = subprocess.run(cmd, shell=True, check=True, capture_output=True, timeout=120)
                 try:
                     output_text = result.stdout.decode('utf-8')
+                    output_text_list.append(output_text)
                 except UnicodeDecodeError:
                     output_text = result.stdout.decode('utf-8', 'replace')  # Replace or ignore invalid characters
-                print(output_text)
+                    output_text_list.append(output_text)
                 if 'error' in output_text.lower():
-                    logging.error(f'Error executing command: {cmd}\nError message: {output_text}')
-                    extract_success = False
+                    error_msg = f'Error executing command: {cmd}\nError message: {output_text}'
+                    output_text_list = []
                     break
             # something is wrong with the video file
             except subprocess.CalledProcessError as e:
-                # print(f"Inside extract_meta: {e.stderr}")
-                logging.error(f'Error executing command: {cmd}\nError message: {e.stderr}')
+                error_msg = f'Error executing command: {cmd}\nError message: {e.stderr}'
                 # signal failure if any of the meta data extraction fails
-                extract_success = False
+                output_text_list = []
                 break
             except subprocess.TimeoutExpired:
-                logging.error(f"Command timed out: {cmd}")
-                extract_success = False
+                error_msg = f"Command timed out: {cmd}"
+                output_text_list = []
                 break
             except Exception as e:
-                logging.error(f'Unexpected error while executing {cmd}: {traceback.format_exc()}')
-                extract_success = False
+                error_msg = f'Unexpected error while executing {cmd}: {traceback.format_exc()}, {e}'
+                output_text_list = []
                 break
         # no need to compress if meta data extraction fails (video corrupted)
-        if extract_success:
-            highlights, fname = self.get_highlight_and_device_id(self.video_raw_path, settings.output_folder)
-            return highlights, fname
-        else:
-            return None, extract_success
+        return output_text_list, error_msg
 
-    def get_highlight_and_device_id(self, video_path, output_folder):
-        def save_info(all_info, output_path, info_type):
+    def get_highlight_and_device_id(self):
+        def save_info(file_name, all_info, output_path, info_type):
             assert info_type in ['highlights', 'device_id'], \
                 'info_type needs to be either device_id or highlights'
             str2insert = ""
-            str2insert += fname + "\n"
+            str2insert += file_name + "\n"
             if info_type == 'highlights':
                 for i, highl in enumerate(all_info):
                     str2insert += "(" + str(i + 1) + "): "
@@ -166,42 +162,49 @@ class FileProcessor:
             with open(output_path, "w") as f:
                 f.write(str2insert)
 
-        fname = os.path.basename(video_path).split('.')[0]
-        highlights = examine_mp4(video_path)
-        highlights.sort()
-        highlight_path = os.path.join(output_folder, f'GP-Highlights_{fname}.txt')
-        print(video_path)
-        print(highlight_path)
-        save_info(highlights, highlight_path, 'highlights')
-        device_id = device.examine_mp4(video_path)
-        device_id_path = os.path.join(output_folder, f'GP-Device_name_{fname}.txt')
-        save_info(device_id, device_id_path, 'device_id')
-        print(device_id_path)
-        return highlights, self.compress_vid(video_path, output_folder)
+        highlights = None
+        device_id = None
+        msg = None
+        file_name = os.path.basename(self.video_raw_path).split('.')[0]
+        try:
+            highlights = examine_mp4(self.video_raw_path)
+            highlights.sort()
+            highlight_path = os.path.join(self.processed_folder, 'highlights_device_info',
+                                          f'GP-Highlights_{file_name}.txt')
+            save_info(file_name, highlights, highlight_path, 'highlights')
+            device_id = device.examine_mp4(self.video_raw_path)
+            device_id_path = os.path.join(self.processed_folder, 'highlights_device_info',
+                                          f'GP-Device_name_{file_name}.txt')
+            save_info(file_name, device_id, device_id_path, 'device_id')
+        except Exception as e:
+            msg = f"Error in get_highlight_and_device_id from {file_name}: {e}"
+        return highlights, device_id, msg
 
     def compress_vid(self):
-        fname = os.path.basename(video_path)
-        if fname.endswith(('.MP4', '.mp4', '.avi')):
-            output_name = fname if fname.lower().endswith('.mp4') else fname.replace('.avi', '.MP4')
-            output_path = os.path.join(output_folder, output_name)
-            if settings.is_h264_nvenc_available:
-                cmd = f'ffmpeg -i "{video_path}" -vcodec h264_nvenc -cq 30 "{output_path}"'  # this is what we use across all videos
-            else:
-                cmd = f'ffmpeg -i "{video_path}" -vcodec libx264 -crf 28 "{output_path}"'
+        fname = os.path.basename(self.video_raw_path)
+        extension = os.path.splitext(fname)[1]
 
-        elif fname.endswith('.LRV'):
-            output_name = fname.replace('.LRV', '.MP4')
-            output_path = os.path.join(output_folder, output_name)
-            cmd = f'ffmpeg -i "{video_path}" -vcodec libx264 -crf 28 "{output_path}"'
+        if extension.lower() not in ['.mp4', '.avi', '.lrv']:
+            return None, f"Unsupported file format: {fname}"
+
+        output_name = fname.replace(extension, '.mp4')
+        output_path = os.path.join(self.processed_folder, output_name)
+
+        # Choose codec based on file type and availability
+        if extension.lower() in ['.mp4', '.avi'] and settings.is_h264_nvenc_available:
+            codec = "-vcodec h264_nvenc -cq 30"
         else:
-            raise (f"Unsupported file format: {fname}")
+            codec = "-vcodec libx264 -crf 28"
+
+        cmd = f'ffmpeg -i "{self.video_raw_path}" {codec} "{output_path}"'
 
         try:
             subprocess.run(cmd, shell=True, check=True, text=True)
         except subprocess.CalledProcessError as e:
-            logging.error(f'Error executing command: {cmd}\nError message: {e.stderr}')
-            return False  # signal failure if any of the meta data extraction fails
-        return fname  # signal success if compression succeeds
+            msg = f'Error executing command: {cmd}\nError message: {e.stderr}'
+            return None, msg
+
+        return output_path, None  # Success
 
     def upload_files_storage_bucket(self, gcp_bucket_name, zip_path, video_path, common_folder):
         # upload video file
@@ -220,13 +223,20 @@ class FileProcessor:
 
         return processed_success, zip_success
 
+    def zip_files(self):
+        error = None
+        zipfile_path = None
 
-def zip_files(zip_folder, zip_out_name):
-    zipfile_path = f"{zip_out_name}.zip"
-    print(f"Archive {zip_folder} to {zipfile_path}")
-    shutil.make_archive(zip_out_name, 'zip', root_dir=zip_folder)
-    video_path = os.path.join(zip_folder, [f for f in os.listdir(zip_folder) if f.endswith(".MP4")][0])
-    return zipfile_path, video_path
+        try:
+            meta_data_folder = os.path.join(self.processed_folder, 'meta_data')
+            zipfile_base = os.path.join(self.processed_folder, 'meta_data')  # no .zip here
+
+            # Create the zip file
+            zipfile_path = shutil.make_archive(base_name=zipfile_base, format='zip', root_dir=meta_data_folder)
+        except Exception as e:
+            error = e
+
+        return zipfile_path, error
 
 
 def clear_directory_contents(dir_path):

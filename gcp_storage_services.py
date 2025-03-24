@@ -6,6 +6,7 @@ from tqdm import tqdm
 import os
 import logging
 import json
+import pandas as pd
 from datetime import datetime
 
 
@@ -177,3 +178,29 @@ class GCPStorageServices:
             print("Error in read_all_names_from_gcs_bucket bucket '{}': {}".format(bucket_name, e))
 
         return file_names
+
+    def move_matching_files(self, source_bucket_name, target_bucket_name, file_uniq_id=None):
+        source_bucket = self.client.bucket(source_bucket_name)
+        target_bucket = self.client.bucket(target_bucket_name)
+
+        if file_uniq_id:
+            msg = None
+            try:
+                blobs = source_bucket.list_blobs()  # Get all objects in the source bucket
+                for blob in blobs:
+                    # Check if the blob name contains the specified substring
+                    if file_uniq_id in blob.name:
+                        # Copy the blob to the destination bucket
+                        new_blob = source_bucket.copy_blob(blob, target_bucket, blob.name)
+                        # Delete the original blob from the source bucket
+                        blob.delete()
+                        msg = msg + f"Moved {blob.name} from {source_bucket} to {target_bucket}. "
+                if msg:
+                    success = True
+                else:
+                    msg = f"No such file contains {file_uniq_id}"
+                    success = False
+            except Exception as e:
+                msg = f"Failed to move file {file_uniq_id} from {source_bucket} to {target_bucket}."
+                success = False
+            return success, msg
