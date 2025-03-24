@@ -206,22 +206,18 @@ class FileProcessor:
 
         return output_path, None  # Success
 
-    def upload_files_storage_bucket(self, gcp_bucket_name, zip_path, video_path, common_folder):
-        # upload video file
-        gcp_video_gcp_path = video_path.split(common_folder)[-1]
-        processed_vid_gcp_msg, processed_success = storage_client_instance.upload_file_to_gcs(
-            source_file_name=video_path, destination_path=gcp_video_gcp_path, gcp_bucket=gcp_bucket_name
-        )
-        storage_client_instance.logs['processed_details'].append(processed_vid_gcp_msg)
-
-        # zip file
-        gcp_zip_gcp_path = zip_path.split(common_folder)[-1]
-        zip_gcp_msg, zip_success = storage_client_instance.upload_file_to_gcs(
-            source_file_name=zip_path, destination_path=gcp_zip_gcp_path, gcp_bucket=gcp_bucket_name
-        )
-        storage_client_instance.logs['zip_details'].append(zip_gcp_msg)
-
-        return processed_success, zip_success
+    @staticmethod
+    def get_compressed_video_duration(self, compressed_video_path):
+        duration = 0
+        try:
+            # get video duration
+            video = VideoFileClip(compressed_video_path)
+            duration = video.duration
+            video.close()
+        except Exception as e:
+            print(
+                f"Fail to get_compressed_video_duration from {compressed_video_path}: {e}")
+        return duration
 
     def zip_files(self):
         error = None
@@ -238,23 +234,38 @@ class FileProcessor:
 
         return zipfile_path, error
 
+    def clear_directory_contents_raw_storage(self):
+        """ Remove everything inside a directory path """
+        raw_folder = os.path.dirname(self.video_raw_path)
+        if not os.path.isdir(raw_folder) or not os.path.isdir(self.processed_folder):
+            print(f"The specified {raw_folder} does not exist.")
+            return
 
-def clear_directory_contents(dir_path):
-    """ Remove everything inside a directory path """
-    if not os.path.isdir(dir_path):
-        print("The specified directory does not exist.")
-        return
+        if not os.path.isdir(self.processed_folder):
+            print(f"The specified {self.processed_folder} does not exist.")
+            return
 
-    for filename in os.listdir(dir_path):
-        file_path = os.path.join(dir_path, filename)
-        try:
-            if os.path.isfile(file_path) or os.path.islink(file_path):
-                os.remove(file_path)
+        for filename in os.listdir(raw_folder):
+            file_path = os.path.join(raw_folder, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.remove(file_path)
 
-            elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)
-        except Exception as e:
-            print(f"Failed to delete {file_path}. Reason: {e}")
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print(f"Failed to delete {file_path}. Reason: {e}")
+
+        for filename in os.listdir(self.processed_folder):
+            file_path = os.path.join(self.processed_folder, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.remove(file_path)
+
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print(f"Failed to delete {file_path}. Reason: {e}")
 
 
 def miscellaneous_features():

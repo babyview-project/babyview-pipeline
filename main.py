@@ -2,8 +2,9 @@ import argparse
 import os
 from datetime import datetime
 import logging
+import shutil
 
-from moviepy import VideoFileClip
+
 
 import settings
 from controllers import GoogleDriveDownloader
@@ -33,7 +34,17 @@ def make_local_directory(video):
 
 
 def process():
-    logs = {}
+    logs = {
+        'process_raw_success': [],
+        'process_raw_fail': [],
+        'storage_upload_success': [],
+        'storage_upload_fail': [],
+        'meta_extract_fail': [],
+        'get_highlights_fail': [],
+        'compress_zip_fail':[],
+        'highlights_video_migration': [],
+        'file_deletion': []
+    }
 
     video_tracking_data = airtable.get_video_info_from_video_table(filter_key='unique_video_id',
                                                                    filter_value=['rec00KRZq9bT8l8nc',
@@ -99,11 +110,9 @@ def process():
                     logs['process_raw_fail'].append(
                         f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}_{raw_upload_error_msg}')
                 else:
-                    logs['process_raw_sucess'].append(
+                    logs['process_raw_success'].append(
                         f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}_uploaded_to_{raw_gcp_bucket}/{video.gcp_raw_location}')
             # Step 3. If raw upload success, extract meta, get highlights from go pro.
-            print(video.to_dict())
-            raw_upload_success = False
             file_processor = FileProcessor(video_raw_path=local_raw_download_path,
                                            processed_folder=local_processed_folder)
             if raw_upload_success and not video.blackout_region:
@@ -155,24 +164,16 @@ def process():
                             bucket_name=f"{video.gcp_bucket_name}_storage",
                             file_substring=video.unique_video_id)
                         video.status = 'Compress Zip Failed'
+                        if delete_msg:
+                            logs['file_deletion'].append(delete_msg)
                     else:
-                        try:
-                            # get video duration
-                            video.duration = VideoFileClip(video.compress_video_path).duration
-                            video.close()
-
-                            # remove the downloaded and processed files to save local storage
-                            # remove_processed_path = os.path.commonpath([zip_path, video_path])
-                            # print(f"Finished processing, removing {remove_processed_path}")
-                            # self.clear_directory_contents(remove_processed_path)
-                            # remove_raw_path = remove_processed_path.replace('processed', 'raw')
-                            # print(f"Finished processing, removing {remove_raw_path}")
-                            # self.clear_directory_contents(remove_raw_path)
-                            # shutil.rmtree(remove_raw_path)
-                        except Exception as e:
-                            pass
+                        logs['storage_upload_success'].append(
+                            f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}_{compress_upload_msg}_{zipped_upload_msg}')
+                        video.duration = file_processor.get_compressed_video_duration(compressed_video_path=video.compress_video_path)
+                        file_processor.clear_directory_contents_raw_storage()
                         video.status = 'Processed'
-
+            print(video.to_dict())
+            input("updating to airtable...")
             # Step 5. Update the video info with the processed date and duration on the tracking sheet
             video.pipeline_run_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             data = {
