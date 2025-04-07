@@ -57,7 +57,7 @@ class AirtableServices:
 
         return participant_dict
 
-    def update_video_table_single_video(self, video_unique_id, data: dict):
+    def update_video_table_single_video(self, video_unique_id, data):
         self.video_table.update(video_unique_id, data)
 
 

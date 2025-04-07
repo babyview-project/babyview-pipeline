@@ -29,9 +29,11 @@ class Video:
     gcp_raw_location = None
 
     meta_extract = None
-    highlights = None
+    highlight = None
     device_id = None
 
+    local_raw_download_path = None
+    local_processed_folder = None
     compress_video_path = None
     zipped_file_path = None
 
@@ -51,8 +53,8 @@ class Video:
         pipeline_run_date = video_info.get('pipeline_run_date', None)
         self.blackout_region = None if pd.isna(blackout_region) else blackout_region
         self.pipeline_run_date = None if pd.isna(pipeline_run_date) else pipeline_run_date
-        self.status = video_info.get('status', None)
-        self.duration = video_info.get('duration_sec', None)
+        self.status = video_info.get('status', '')
+        # self.duration = video_info.get('duration_sec', None)
 
         self.set_google_drive_video_name()
         self.set_session_num()
@@ -91,14 +93,16 @@ class Video:
         if 'bing' in self.dataset.lower():
             folder_id = "1-ATtN-wZ_mVY3Hm8Q0DO9CVizBsAmY6D"
 
-            google_drive_folder_path = [re.sub(r"\D", "", self.subject_id), self.normalize_date(self.date, "%m/%d/%Y")]
+            # google_drive_folder_path = [re.sub(r"\D", "", self.subject_id), self.normalize_date(self.date, "%m/%d/%Y")]
+            google_drive_folder_path = [self.subject_id, self.normalize_date(self.date, "%m/%d/%Y")]
             gcp_folder_path = [self.subject_id, self.normalize_date(self.date, "%Y-%m-%d")]
         else:
             folder_id = "1ZfVyOBqb2L-Sw0b5himyg_ysB6Mwb8bo"
             drive_week = f"{self.normalize_date(self.recording_week.split('-')[0], "%m/%d/%Y")}-{self.normalize_date(self.recording_week.split('-')[1], "%m/%d/%Y")}"
             gcp_week = f"{self.normalize_date(self.recording_week.split('-')[0], "%Y.%m.%d")}-{self.normalize_date(self.recording_week.split('-')[1], "%Y.%m.%d")}"
 
-            google_drive_folder_path = [re.sub(r"\D", "", self.subject_id), 'By Date', drive_week]
+            # google_drive_folder_path = [re.sub(r"\D", "", self.subject_id), 'By Date', drive_week]
+            google_drive_folder_path = [self.subject_id, 'By Date', drive_week]
             gcp_folder_path = [self.subject_id, "By_Date", gcp_week]
 
         kwargs = dict(
