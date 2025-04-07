@@ -19,6 +19,11 @@ storage = GCPStorageServices()
 
 
 def make_local_directory(video):
+    if not os.path.exists(settings.raw_file_root):
+        os.makedirs(settings.raw_file_root, exist_ok=True)
+    if not os.path.exists(settings.process_file_root):
+        os.makedirs(settings.process_file_root, exist_ok=True)
+
     entry_point = settings.google_drive_entry_point_folder_names[1] if 'bing' in video.dataset.lower() else \
         settings.google_drive_entry_point_folder_names[0]
     local_raw_download_path = os.path.join(settings.raw_file_root, entry_point, video.gcp_raw_location)
