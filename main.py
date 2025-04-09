@@ -51,7 +51,7 @@ def make_local_directory(video):
     return Path(local_raw_download_path).resolve(), Path(local_processed_folder).resolve()
 
 
-def process():
+def process(video_tracking_data):
     logs = {
         'process_raw_success': [],
         'process_raw_fail': [],
@@ -64,15 +64,6 @@ def process():
         'file_deletion': []
     }
 
-    video_tracking_data = airtable.get_video_info_from_video_table(filter_key='unique_video_id',
-                                                                   filter_value=[
-                                                                       # 'rec00KRZq9bT8l8nc', #bv_main reg
-                                                                       'rec03VOaeG6dftcIg', # luna reg
-                                                                       'rec0NwEqXa9gYtbyX', #bing reg
-                                                                       'recsc7rperGsfmWSw', #bv_main with blackout
-                                                                       'recbuxCVAkXCuUWK7', #bv_main reg
-                                                                       'recGfqdmALp9jP1yE', #bv_main reg
-                                                                   ])
     storage.check_gcs_buckets()
     if video_tracking_data.empty:
         logs['airtable'] = "No_Record_From_Airtable."
@@ -212,7 +203,7 @@ def process():
                 'gcp_raw_location': f'{video.gcp_bucket_name}_raw/{video.gcp_raw_location}',
                 'gcp_storage_video_location': f'{video.gcp_bucket_name}_storage/{video.gcp_storage_video_location}',
                 'gcp_storage_zip_location': f'{video.gcp_bucket_name}_storage/{video.gcp_storage_zip_location}',
-                    }
+            }
             airtable.update_video_table_single_video(video_unique_id=video.unique_video_id, data=data)
 
     # print(logs)
@@ -230,7 +221,32 @@ def main():
     # # @TODO: temporarily to run multiple processes for each subject
     # parser.add_argument('--subject_id', type=str, default='all', help='Subject ID to download videos for')
     # args = parser.parse_args()
-    process()
+    parser = argparse.ArgumentParser(description="Download videos from cloud services")
+    parser.add_argument('--filter_key', type=str, default='pipeline_run_date',
+                        choices=['pipeline_run_date', 'status', 'dataset', 'subject_id', 'unique_video_id'],
+                        help="Choose from ['pipeline_run_date', 'status', 'dataset', 'subject_id', 'unique_video_id']")
+    parser.add_argument('--filter_value', type=str, default=None,
+                        help="Choose the value for the filter_key")
+
+    args = parser.parse_args()
+
+    if args:
+        filter_key = args.filter_key
+        filter_value = args.filter_value
+    else:
+        filter_key = 'unique_video_id'
+        filter_value = [
+            # 'rec00KRZq9bT8l8nc', #bv_main reg
+            'rec03VOaeG6dftcIg',  # luna reg
+            'rec0NwEqXa9gYtbyX',  # bing reg
+            'recsc7rperGsfmWSw',  # bv_main with blackout
+            'recbuxCVAkXCuUWK7',  # bv_main reg
+            'recGfqdmALp9jP1yE',  # bv_main reg
+        ]
+
+    video_tracking_data = airtable.get_video_info_from_video_table(filter_key=filter_key, filter_value=filter_value)
+    print(video_tracking_data, len(video_tracking_data))
+    process(video_tracking_data=video_tracking_data)
 
 
 if __name__ == '__main__':

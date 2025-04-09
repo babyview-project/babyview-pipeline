@@ -51,7 +51,7 @@ class Video:
         self.logging_date = video_info.get('logging_date', None)
         blackout_region = video_info.get('blackout_region', None)
         pipeline_run_date = video_info.get('pipeline_run_date', None)
-        self.blackout_region = None if pd.isna(blackout_region) else blackout_region
+        self.blackout_region = blackout_region if isinstance(blackout_region, list) else None
         self.pipeline_run_date = None if pd.isna(pipeline_run_date) else pipeline_run_date
         self.status = video_info.get('status', '')
         # self.duration = video_info.get('duration_sec', None)

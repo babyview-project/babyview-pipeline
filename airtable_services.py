@@ -27,13 +27,20 @@ class AirtableServices:
                 formula = "OR(" + ", ".join([f"{filter_key} = '{value}'" for value in filter_value]) + ")"
             else:
                 formula = ""
-            records = self.video_table.all(formula=formula)
+        elif filter_key:
+            formula = f"NOT({filter_key})"
         else:
-            records = self.video_table.all()
+            formula = None
+
+        print(f"Using airtable formula {formula}")
+        records = self.video_table.all(formula=formula)
         if not records:
             return pd.DataFrame()  # Return empty DataFrame if no record found
         for record in records:
-            participant_id = record["fields"].get("subject_id", [])[0]
+            subject_id_list = record["fields"].get("subject_id", [])
+
+            participant_id = subject_id_list[0] if subject_id_list else "Unknown"
+
             record["fields"]["subject_id"] = self.participant_dict.get(participant_id, None)
         df = pd.DataFrame([record["fields"] for record in records])
 
