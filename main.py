@@ -12,6 +12,7 @@ from controllers import GoogleDriveDownloader
 from controllers import FileProcessor
 from airtable_services import AirtableServices
 from gcp_storage_services import GCPStorageServices
+from video import Video
 
 airtable = AirtableServices()
 downloader = GoogleDriveDownloader()
@@ -61,7 +62,8 @@ def process(video_tracking_data):
         'get_highlights_fail': [],
         'compress_zip_fail': [],
         'highlights_video_migration': [],
-        'file_deletion': []
+        'gopro_highlight_detected': [],
+        'file_deletion': [],
     }
 
     storage.check_gcs_buckets()
@@ -128,6 +130,8 @@ def process(video_tracking_data):
             # Step 3. If raw upload success, extract meta, get highlights from go pro.
             file_processor = FileProcessor(video=video)
             if raw_upload_success and not video.blackout_region:
+                video.duration = file_processor.get_compressed_video_duration(
+                    compressed_video_path=video.local_raw_download_path)
                 # LUNA avi videos do not have meta data, will just compress, but GoPro videos have metadata
                 if 'luna' in video.gopro_video_id.lower() or video.gcp_raw_location.lower().endswith('lrv'):
                     video.meta_extract = True
@@ -156,43 +160,61 @@ def process(video_tracking_data):
                             video.status = 'Gopro highlight detected'
             # Step 4. Create zip file, compress video and upload it and the video to GCS
             if video.meta_extract and not video.highlight:
+                # Zip non-luna meta and upload to GCS
+                zipped_file_error_msg = None
+                if 'luna' not in video.gopro_video_id.lower():
+                    video.zipped_file_path, zipped_file_error_msg = file_processor.zip_files()
+                    if zipped_file_error_msg:
+                        print(f'{video.unique_video_id}_{zipped_file_error_msg}')
+                        logs['compress_zip_fail'].append(
+                            f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}: zip_failed_{zipped_file_error_msg}')
+                        video.status = 'Compress zip failed'
+                    else:
+                        video.gcp_storage_zip_location = f"{video.subject_id}/{os.path.basename(video.zipped_file_path)}"
+                        zipped_upload_success, zipped_upload_msg = storage.upload_file_to_gcs(
+                            source_file_name=video.zipped_file_path, destination_path=video.gcp_storage_zip_location,
+                            gcp_bucket=f"{video.gcp_bucket_name}_storage")
+                        if zipped_upload_msg:
+                            print(f'{video.unique_video_id}_{zipped_upload_msg}')
+                            logs['storage_upload_fail'].append(
+                                f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}: zip_upload_fail_{zipped_upload_msg}')
+                            video.status = 'Compress zip failed'
+                # Compress all vids and upload to GCS
                 video.compress_video_path, compress_error_msg = file_processor.compress_vid()
-                video.zipped_file_path, zipped_file_error_msg = file_processor.zip_files()
-                if compress_error_msg or zipped_file_error_msg:
-                    print(compress_error_msg, zipped_file_error_msg)
+                if compress_error_msg:
+                    print(f'{video.unique_video_id}_{compress_error_msg}')
                     logs['compress_zip_fail'].append(
-                        f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}_{compress_error_msg}_{zipped_file_error_msg}')
+                        f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}: compress_fail_{compress_error_msg}')
                     video.status = 'Compress zip failed'
                 else:
                     video.gcp_storage_video_location = f"{video.subject_id}/{os.path.basename(video.compress_video_path)}"
-                    video.gcp_storage_zip_location = f"{video.subject_id}/{os.path.basename(video.zipped_file_path)}"
-                    # upload the zip and mp4 to GCS
                     compress_upload_success, compress_upload_msg = storage.upload_file_to_gcs(
-                        source_file_name=video.compress_video_path, destination_path=video.gcp_storage_video_location,
+                        source_file_name=video.compress_video_path,
+                        destination_path=video.gcp_storage_video_location,
                         gcp_bucket=f"{video.gcp_bucket_name}_storage")
-                    zipped_upload_success, zipped_upload_msg = storage.upload_file_to_gcs(
-                        source_file_name=video.zipped_file_path, destination_path=video.gcp_storage_zip_location,
-                        gcp_bucket=f"{video.gcp_bucket_name}_storage")
-                    if compress_upload_msg or zipped_upload_msg:
+                    if compress_upload_msg:
+                        print(f'{video.unique_video_id}_{compress_upload_msg}')
                         logs['storage_upload_fail'].append(
-                            f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}_{compress_upload_msg}_{zipped_upload_msg}')
-                        print(
-                            f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}_{compress_upload_msg}_{zipped_upload_msg}')
-                        success, delete_msg = storage.delete_blobs_with_substring(
-                            bucket_name=f"{video.gcp_bucket_name}_storage",
-                            file_substring=video.unique_video_id)
+                            f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}: compress_upload_fail_{compress_upload_msg}')
                         video.status = 'Compress zip failed'
-                        if delete_msg:
-                            logs['file_deletion'].append(delete_msg)
-                    else:
-                        print(
-                            f"Uploaded {video.gcp_file_name} to {video.gcp_bucket_name}_storage/{video.gcp_storage_video_location} and {video.gcp_storage_zip_location}")
-                        logs['storage_upload_success'].append(
-                            f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}')
-                        video.duration = file_processor.get_compressed_video_duration(
-                            compressed_video_path=video.compress_video_path)
-                        file_processor.clear_directory_contents_raw_storage()
-                        video.status = 'Processed'
+
+                if compress_error_msg or zipped_file_error_msg:
+                    success, delete_msg = storage.delete_blobs_with_substring(
+                        bucket_name=f"{video.gcp_bucket_name}_storage",
+                        file_substring=video.unique_video_id)
+                    video.status = 'Compress zip failed'
+                    if delete_msg:
+                        logs['file_deletion'].append(delete_msg)
+                else:
+                    print(
+                        f"Uploaded {video.gcp_file_name} to {video.gcp_bucket_name}_storage/{video.gcp_storage_video_location} and {video.gcp_storage_zip_location}")
+                    logs['storage_upload_success'].append(
+                        f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}')
+                    # video.duration = file_processor.get_compressed_video_duration(
+                    #     compressed_video_path=video.compress_video_path)
+                    file_processor.clear_directory_contents_raw_storage()
+                    video.status = 'Processed'
+
             print(video.to_dict())
             # Step 5. Update the video info with the processed date and duration on the tracking sheet
             video.pipeline_run_date = datetime.now().strftime("%Y-%m-%d")
@@ -201,8 +223,8 @@ def process(video_tracking_data):
                 'status': video.status,
                 'duration_sec': video.duration,
                 'gcp_raw_location': f'{video.gcp_bucket_name}_raw/{video.gcp_raw_location}',
-                'gcp_storage_video_location': f'{video.gcp_bucket_name}_storage/{video.gcp_storage_video_location}',
-                'gcp_storage_zip_location': f'{video.gcp_bucket_name}_storage/{video.gcp_storage_zip_location}',
+                'gcp_storage_video_location': f'{video.gcp_bucket_name}_storage/{video.gcp_storage_video_location}' if video.gcp_storage_video_location else None,
+                'gcp_storage_zip_location': f'{video.gcp_bucket_name}_storage/{video.gcp_storage_zip_location}' if video.gcp_storage_zip_location else None,
             }
             airtable.update_video_table_single_video(video_unique_id=video.unique_video_id, data=data)
 
@@ -222,7 +244,7 @@ def main():
     # parser.add_argument('--subject_id', type=str, default='all', help='Subject ID to download videos for')
     # args = parser.parse_args()
     parser = argparse.ArgumentParser(description="Download videos from cloud services")
-    parser.add_argument('--filter_key', type=str, default='pipeline_run_date',
+    parser.add_argument('--filter_key', type=str, default='pipeline_run_date',  #None
                         choices=['pipeline_run_date', 'status', 'dataset', 'subject_id', 'unique_video_id'],
                         help="Choose from ['pipeline_run_date', 'status', 'dataset', 'subject_id', 'unique_video_id']")
     parser.add_argument('--filter_value', type=str, default=None,
@@ -230,19 +252,18 @@ def main():
 
     args = parser.parse_args()
 
-    if args:
-        filter_key = args.filter_key
-        filter_value = args.filter_value
-    else:
-        filter_key = 'unique_video_id'
-        filter_value = [
-            # 'rec00KRZq9bT8l8nc', #bv_main reg
-            'rec03VOaeG6dftcIg',  # luna reg
-            'rec0NwEqXa9gYtbyX',  # bing reg
-            'recsc7rperGsfmWSw',  # bv_main with blackout
-            'recbuxCVAkXCuUWK7',  # bv_main reg
-            'recGfqdmALp9jP1yE',  # bv_main reg
-        ]
+    filter_key = args.filter_key
+    filter_value = args.filter_value
+    # filter_key = 'unique_video_id'
+    # filter_value = [
+    #     # 'rec00KRZq9bT8l8nc', #bv_main reg
+    #     # 'rec03VOaeG6dftcIg',  # luna reg
+    #     # 'rec0NwEqXa9gYtbyX',  # bing reg
+    #     # 'recsc7rperGsfmWSw',  # bv_main with blackout
+    #     # 'recbuxCVAkXCuUWK7',  # bv_main reg
+    #     # 'recGfqdmALp9jP1yE',  # bv_main reg
+    #     'reccEvuBCfsoTiJ12',
+    # ]
 
     video_tracking_data = airtable.get_video_info_from_video_table(filter_key=filter_key, filter_value=filter_value)
     print(video_tracking_data, len(video_tracking_data))

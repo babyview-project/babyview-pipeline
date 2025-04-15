@@ -184,7 +184,7 @@ class GCPStorageServices:
         target_bucket = self.client.bucket(target_bucket_name)
 
         if file_uniq_id:
-            msg = None
+            msg = ''
             try:
                 blobs = source_bucket.list_blobs()  # Get all objects in the source bucket
                 for blob in blobs:
@@ -201,6 +201,6 @@ class GCPStorageServices:
                     msg = f"No such file contains {file_uniq_id}"
                     success = False
             except Exception as e:
-                msg = f"Failed to move file {file_uniq_id} from {source_bucket} to {target_bucket}."
+                msg = f"Failed to move file {file_uniq_id} from {source_bucket} to {target_bucket}. Error: {e}."
                 success = False
             return success, msg

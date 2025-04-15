@@ -8,6 +8,8 @@ A pipeline for downloading, compressing, and managing video metadata from the Go
 
 ```sh
 pip install -r requirements.txt
+brew install cmake /
+sudo apt install cmake make gcc -y
 ```
 
 ## Creds and temp file path setup

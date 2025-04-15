@@ -1,12 +1,12 @@
 import json
 import os
 import io
-import re
 import shutil
 import traceback
 import logging
-
-import pandas
+import struct
+import numpy as np
+from math import floor
 
 import settings
 import util
@@ -24,11 +24,7 @@ from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
-import whisper
-from moviepy import VideoFileClip
 
-import meta_extract.get_device_id as device
-from meta_extract.get_highlight_flags import examine_mp4, sec2dtime
 
 from gcp_storage_services import GCPStorageServices
 from video import Video
@@ -37,7 +33,7 @@ from video import Video
 ALL_METAS = [
     'ACCL', 'GYRO', 'SHUT', 'WBAL', 'WRGB', 'ISOE',
     'UNIF', 'FACE', 'CORI', 'MSKP', 'IORI', 'GRAV',
-    'WNDM', 'MWET', 'AALP', 'LSKP'
+    'WNDM', 'MWET', 'AALP', 'LSKP', 'HILG'
 ]
 logging.basicConfig(
     level=logging.INFO,
@@ -117,10 +113,11 @@ class FileProcessor:
         """Extract specified telemetry tags from a GoPro video and write to separate files."""
         error_msg = None
         output_text_list = []
+
         for meta in ALL_METAS:
             meta_path = os.path.join(self.video.local_processed_folder, f'{self.video.gcp_file_name}_metadata', f'{meta}_meta.txt')
 
-            cmd = f'./gpmf-parser/demo/gpmfdemo {self.video.local_raw_download_path} -f{meta} -a | tee {meta_path}'
+            cmd = f'{settings.gpmf_parser_location} {self.video.local_raw_download_path} -f{meta} -a | tee {meta_path}'
             try:
                 result = subprocess.run(cmd, shell=True, check=True, capture_output=True, timeout=120)
                 try:
@@ -150,75 +147,148 @@ class FileProcessor:
         # no need to compress if meta data extraction fails (video corrupted)
         return output_text_list, error_msg
 
-    # def extract_meta_depricated(self):
-    #     error_msg = None
-    #     output_text_list = []
-    #     print(f'Extracting metadata from {self.video.local_raw_download_path}.')
-    #     Telemetry = Parser(self.video.local_raw_download_path).telemetry()
-    #     print(Telemetry)
-    #     for meta in ALL_METAS:
-    #         meta_path = os.path.join(self.video.local_processed_folder, f'{self.video.gcp_file_name}_metadata', f'{meta}_meta.txt')
-    #
-    #         # cmd = f'../gpmf-parser/gpmf-parser {self.video.local_raw_download_path} -f{meta} -a | tee {meta_path}'
-    #         # try:
-    #         #     result = subprocess.run(cmd, shell=True, check=True, capture_output=True, timeout=120)
-    #         #     try:
-    #         #         output_text = result.stdout.decode('utf-8')
-    #         #         output_text_list.append(output_text)
-    #         #     except UnicodeDecodeError:
-    #         #         output_text = result.stdout.decode('utf-8', 'replace')  # Replace or ignore invalid characters
-    #         #         output_text_list.append(output_text)
-    #         #     if 'error' in output_text.lower():
-    #         #         error_msg = f'Error executing command: {cmd}\nError message: {output_text}'
-    #         #         output_text_list = []
-    #         #         break
-    #         # # something is wrong with the video file
-    #         # except subprocess.CalledProcessError as e:
-    #         #     error_msg = f'Error executing command: {cmd}\nError message: {e.stderr}'
-    #         #     # signal failure if any of the meta data extraction fails
-    #         #     output_text_list = []
-    #         #     break
-    #         # except subprocess.TimeoutExpired:
-    #         #     error_msg = f"Command timed out: {cmd}"
-    #         #     output_text_list = []
-    #         #     break
-    #         # except Exception as e:
-    #         #     error_msg = f'Unexpected error while executing {cmd}: {traceback.format_exc()}, {e}'
-    #         #     output_text_list = []
-    #         #     break
-    #     # no need to compress if meta data extraction fails (video corrupted)
-    #     return output_text_list, error_msg
+    @staticmethod
+    def find_boxes(f, start_offset=0, end_offset=float("inf")):
+        """Returns a dictionary of all the data boxes and their absolute starting
+        and ending offsets inside the mp4 file.
 
-    def extract_audio(self, audio_path="temp_audio.wav"):
-        cmd = [
-            "ffmpeg",
-            "-y",  # overwrite if exists
-            "-i", self.video.local_raw_download_path,
-            "-vn",  # no video
-            "-acodec", "pcm_s16le",  # WAV format
-            "-ar", "16000",  # sample rate
-            "-ac", "1",  # mono
-            audio_path
-        ]
-        subprocess.run(cmd, check=True)
-        return audio_path
+        Specify a start_offset and end_offset to read sub-boxes.
+        """
+        s = struct.Struct("> I 4s")
+        boxes = {}
+        offset = start_offset
+        f.seek(offset, 0)
+        while offset < end_offset:
+            data = f.read(8)  # read box header
+            if data == b"": break  # EOF
+            length, text = s.unpack(data)
+            f.seek(length - 8, 1)  # skip to next box
+            boxes[text] = (offset, offset + length)
+            offset += length
+        return boxes
 
-    def contains_word(self, target_word="highlight"):
-        audio_path = self.extract_audio()
-        model = whisper.load_model("base")
-        result = model.transcribe(audio_path)
-        os.remove(audio_path)
-        transcript = result["text"].lower()
-        return target_word.lower() in transcript
+    def examine_mp4(self, filename):
+
+        with open(filename, "rb") as f:
+            boxes = self.find_boxes(f)
+
+            # Sanity check that this really is a movie file.
+            def fileerror():  # function to call if file is not a movie file
+                print("")
+                print("ERROR, file is not a mp4-video-file!")
+
+                os.system("pause")
+                exit()
+
+            try:
+                if boxes[b"ftyp"][0] != 0:
+                    fileerror()
+            except:
+                fileerror()
+
+            moov_boxes = self.find_boxes(f, boxes[b"moov"][0] + 8, boxes[b"moov"][1])
+
+            udta_boxes = self.find_boxes(f, moov_boxes[b"udta"][0] + 8, moov_boxes[b"udta"][1])
+
+            if b'GPMF' in udta_boxes.keys():
+                ### get GPMF Box
+                highlights = self.parse_highlights(f, udta_boxes[b'GPMF'][0] + 8, udta_boxes[b'GPMF'][1])
+            else:
+                # parsing for versions before Hero6
+                highlights = self.parse_highlights_old_version(f, udta_boxes[b'HMMT'][0] + 12, udta_boxes[b'HMMT'][1])
+
+            print("")
+            print("Filename:", filename)
+            print("Found", len(highlights), "Highlight(s)!")
+            print('Here are all Highlights: ', highlights)
+
+            return highlights
+    @staticmethod
+    def parse_highlights_old_version(f, start_offset=0, end_offset=float("inf")):
+        listOfHighlights = []
+
+        offset = start_offset
+        f.seek(offset, 0)
+
+        while True:
+            data = f.read(4)
+
+            timestamp = int.from_bytes(data, "big")
+
+            if timestamp != 0:
+                listOfHighlights.append(timestamp)
+            else:
+                break
+
+        return np.array(listOfHighlights) / 1000  # convert to seconds and return
+
+    @staticmethod
+    def parse_highlights(f, start_offset=0, end_offset=float("inf")):
+
+        inHighlights = False
+        inHLMT = False
+        skipFirstMANL = True
+
+        listOfHighlights = []
+
+        offset = start_offset
+        f.seek(offset, 0)
+
+        def read_highlight_and_append(f, list):
+            data = f.read(4)
+            timestamp = int.from_bytes(data, "big")
+
+            if timestamp != 0:
+                list.append(timestamp)
+
+        while offset < end_offset:
+            data = f.read(4)  # read box header
+            if data == b"": break  # EOF
+
+            if data == b'High' and inHighlights == False:
+                data = f.read(4)
+                if data == b'ligh':
+                    inHighlights = True  # set flag, that highlights were reached
+
+            if data == b'HLMT' and inHighlights == True and inHLMT == False:
+                inHLMT = True  # set flag that HLMT was reached
+
+            if data == b'MANL' and inHighlights == True and inHLMT == True:
+
+                currPos = f.tell()  # remember current pointer/position
+                f.seek(currPos - 20)  # go back to highlight timestamp
+
+                data = f.read(4)  # readout highlight
+                timestamp = int.from_bytes(data, "big")  # convert to integer
+
+                if timestamp != 0:
+                    listOfHighlights.append(timestamp)  # append to highlightlist
+
+                f.seek(currPos)  # go forward again (to the saved position)
+
+        return np.array(listOfHighlights) / 1000  # convert to seconds and return
+
+    @staticmethod
+    def sec2dtime(secs):
+        """converts seconds to datetimeformat"""
+        milsec = (secs - floor(secs)) * 1000
+        secs = secs % (24 * 3600)
+        hour = secs // 3600
+        secs %= 3600
+        min = secs // 60
+        secs %= 60
+
+        return "%d:%02d:%02d.%03d" % (hour, min, secs, milsec)
 
     def highlight_detection(self):
-        is_highlight = False
+        highlights = []
         msg = None
         try:
-            is_highlight = self.contains_word(target_word='highlight')
+            arr = self.examine_mp4(filename=self.video.local_raw_download_path)
+            highlights = arr.tolist() if arr.size > 0 else []
         except Exception as e:
             msg = f"Error in highlight_detection for {self.video.local_raw_download_path}: {e}"
-        return is_highlight, msg
+        return highlights, msg
 
     def compress_vid(self):
         fname = os.path.basename(self.video.local_raw_download_path)
