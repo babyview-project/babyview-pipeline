@@ -4,6 +4,8 @@
 .RData
 .Ruserdata
 creds/
+data/
+gpmf-parser/
 /data/release_1.0
 .DS_Store
 data/.DS_Store
