@@ -25,7 +25,6 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
-
 from gcp_storage_services import GCPStorageServices
 from video import Video
 
@@ -33,7 +32,7 @@ from video import Video
 ALL_METAS = [
     'ACCL', 'GYRO', 'SHUT', 'WBAL', 'WRGB', 'ISOE',
     'UNIF', 'FACE', 'CORI', 'MSKP', 'IORI', 'GRAV',
-    'WNDM', 'MWET', 'AALP', 'LSKP', 'HILG'
+    'WNDM', 'MWET', 'AALP', 'LSKP'
 ]
 logging.basicConfig(
     level=logging.INFO,
@@ -115,7 +114,8 @@ class FileProcessor:
         output_text_list = []
 
         for meta in ALL_METAS:
-            meta_path = os.path.join(self.video.local_processed_folder, f'{self.video.gcp_file_name}_metadata', f'{meta}_meta.txt')
+            meta_path = os.path.join(self.video.local_processed_folder, f'{self.video.gcp_file_name}_metadata',
+                                     f'{meta}_meta.txt')
 
             cmd = f'{settings.gpmf_parser_location} {self.video.local_raw_download_path} -f{meta} -a | tee {meta_path}'
             try:
@@ -203,6 +203,7 @@ class FileProcessor:
             print('Here are all Highlights: ', highlights)
 
             return highlights
+
     @staticmethod
     def parse_highlights_old_version(f, start_offset=0, end_offset=float("inf")):
         listOfHighlights = []
@@ -316,8 +317,7 @@ class FileProcessor:
 
         return output_path, None  # Success
 
-    @staticmethod
-    def get_compressed_video_duration(compressed_video_path):
+    def get_video_duration(self):
         try:
             # get video duration
             result = subprocess.run([
@@ -326,7 +326,7 @@ class FileProcessor:
                 '-select_streams', 'v:0',
                 '-show_entries', 'format=duration',
                 '-of', 'json',
-                compressed_video_path
+                self.video.local_raw_download_path
             ], capture_output=True, text=True)
 
             data = json.loads(result.stdout)
@@ -335,7 +335,7 @@ class FileProcessor:
             return duration
         except Exception as e:
             print(
-                f"Fail to get_compressed_video_duration from {compressed_video_path}: {e}")
+                f"Fail to get_video_duration from {self.video.local_raw_download_path}: {e}")
             return 0
 
     def zip_files(self):
@@ -345,10 +345,12 @@ class FileProcessor:
         try:
             # meta_data_folder = os.path.join(self.processed_folder, 'meta_data')
             # zipfile_base = os.path.join(self.processed_folder, 'meta_data')  # no .zip here
-            local_processed_meta_data_folder = os.path.join(self.video.local_processed_folder, f'{self.video.gcp_file_name}_metadata')
+            local_processed_meta_data_folder = os.path.join(self.video.local_processed_folder,
+                                                            f'{self.video.gcp_file_name}_metadata')
 
             # Create the zip file
-            zipfile_path = shutil.make_archive(base_name=local_processed_meta_data_folder, format='zip', root_dir=local_processed_meta_data_folder)
+            zipfile_path = shutil.make_archive(base_name=local_processed_meta_data_folder, format='zip',
+                                               root_dir=local_processed_meta_data_folder)
         except Exception as e:
             error = e
 
@@ -387,7 +389,6 @@ class FileProcessor:
                     shutil.rmtree(file_path)
             except Exception as e:
                 print(f"Failed to delete {file_path}. Reason: {e}")
-
 
 
 def miscellaneous_features():

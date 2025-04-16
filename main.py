@@ -1,18 +1,13 @@
 import argparse
 import os
-import subprocess
 from datetime import datetime
-import logging
-import shutil
 from pathlib import Path
-import json
 
 import settings
 from controllers import GoogleDriveDownloader
 from controllers import FileProcessor
 from airtable_services import AirtableServices
 from gcp_storage_services import GCPStorageServices
-from video import Video
 
 airtable = AirtableServices()
 downloader = GoogleDriveDownloader()
@@ -75,7 +70,6 @@ def process(video_tracking_data):
         downloading_file_info, downloading_file_info_log = downloader.get_downloading_file_paths(
             video_info_from_tracking=video_tracking_data)
         logs['loading_download_info_error'] = downloading_file_info_log
-        # print(downloading_file_info)
         for video in downloading_file_info:
             raw_download_success = False
             raw_upload_success = False
@@ -129,9 +123,8 @@ def process(video_tracking_data):
                         f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}_uploaded_to_{raw_gcp_bucket}/{video.gcp_raw_location}')
             # Step 3. If raw upload success, extract meta, get highlights from go pro.
             file_processor = FileProcessor(video=video)
+            video.duration = file_processor.get_video_duration()
             if raw_upload_success and not video.blackout_region:
-                video.duration = file_processor.get_compressed_video_duration(
-                    compressed_video_path=video.local_raw_download_path)
                 # LUNA avi videos do not have meta data, will just compress, but GoPro videos have metadata
                 if 'luna' in video.gopro_video_id.lower() or video.gcp_raw_location.lower().endswith('lrv'):
                     video.meta_extract = True
@@ -237,12 +230,6 @@ def process(video_tracking_data):
 
 
 def main():
-    # parser = argparse.ArgumentParser(description="Download videos from cloud services")
-    # parser.add_argument('--bv_type', type=str, default='main', choices=['main', 'bing', 'luna'],
-    #                     help='Babyview Main or Bing')
-    # # @TODO: temporarily to run multiple processes for each subject
-    # parser.add_argument('--subject_id', type=str, default='all', help='Subject ID to download videos for')
-    # args = parser.parse_args()
     parser = argparse.ArgumentParser(description="Download videos from cloud services")
     parser.add_argument('--filter_key', type=str, default='pipeline_run_date',  #None
                         choices=['pipeline_run_date', 'status', 'dataset', 'subject_id', 'unique_video_id'],
@@ -252,18 +239,12 @@ def main():
 
     args = parser.parse_args()
 
-    filter_key = args.filter_key
-    filter_value = args.filter_value
-    # filter_key = 'unique_video_id'
-    # filter_value = [
-    #     # 'rec00KRZq9bT8l8nc', #bv_main reg
-    #     # 'rec03VOaeG6dftcIg',  # luna reg
-    #     # 'rec0NwEqXa9gYtbyX',  # bing reg
-    #     # 'recsc7rperGsfmWSw',  # bv_main with blackout
-    #     # 'recbuxCVAkXCuUWK7',  # bv_main reg
-    #     # 'recGfqdmALp9jP1yE',  # bv_main reg
-    #     'reccEvuBCfsoTiJ12',
-    # ]
+    if settings.forced_filter:
+        filter_key = settings.forced_filter_key
+        filter_value = settings.forced_filter_value
+    else:
+        filter_key = args.filter_key
+        filter_value = args.filter_value
 
     video_tracking_data = airtable.get_video_info_from_video_table(filter_key=filter_key, filter_value=filter_value)
     print(video_tracking_data, len(video_tracking_data))

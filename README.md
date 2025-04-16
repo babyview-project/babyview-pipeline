@@ -8,8 +8,6 @@ A pipeline for downloading, compressing, and managing video metadata from the Go
 
 ```sh
 pip install -r requirements.txt
-brew install cmake /
-sudo apt install cmake make gcc -y
 ```
 
 ## Creds and temp file path setup
@@ -29,9 +27,8 @@ python count_videos.py
 ```
 
 ### Run main function 
+Edit settings.py to enforce a custom filter, Or
 ```sh
-python main.py \
---bv_type 'main/bing/luna' \  # choose from main/bing/luna
---subject_id 'all/00240001' \ # choose from all or individual subject_id
---tracking_sheet_idx_start_stop '2390 2390' # optional select a range of idx to be process
+python main.py --filter_key status --filter_value TEST # process vids with given status 
+python main.py # process vids with no pipeline_run_date
 ```

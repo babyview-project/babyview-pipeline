@@ -13,3 +13,15 @@ gpmf_parser_location = './gpmf-parser-exec'
 is_h264_nvenc_available = False
 
 babyview_drive_id = '0AJtfZGZvxvfxUk9PVA'
+
+forced_filter = False
+forced_filter_key = 'unique_video_id'
+forced_filter_value = [
+    # 'rec00KRZq9bT8l8nc', #bv_main reg
+    # 'rec03VOaeG6dftcIg',  # luna reg
+    # 'rec0NwEqXa9gYtbyX',  # bing reg
+    # 'recsc7rperGsfmWSw',  # bv_main with blackout
+    # 'recbuxCVAkXCuUWK7',  # bv_main reg
+    # 'recGfqdmALp9jP1yE',  # bv_main reg
+    'reccEvuBCfsoTiJ12',
+]
