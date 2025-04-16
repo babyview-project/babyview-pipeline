@@ -9,7 +9,7 @@ raw_file_root = "data/bv_tmp/raw/"
 process_file_root = "data/bv_tmp/processed/"
 error_log = "error_log.txt"
 
-gpmf_parser_location = './gpmf-parser/build/gpmf-parser'
+gpmf_parser_location = './gpmf-parser-exec'
 is_h264_nvenc_available = False
 
 babyview_drive_id = '0AJtfZGZvxvfxUk9PVA'

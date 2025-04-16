@@ -212,9 +212,9 @@ def process(video_tracking_data):
                         f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}')
                     # video.duration = file_processor.get_compressed_video_duration(
                     #     compressed_video_path=video.compress_video_path)
-                    file_processor.clear_directory_contents_raw_storage()
                     video.status = 'Processed'
 
+            file_processor.clear_directory_contents_raw_storage()
             print(video.to_dict())
             # Step 5. Update the video info with the processed date and duration on the tracking sheet
             video.pipeline_run_date = datetime.now().strftime("%Y-%m-%d")
