@@ -1,6 +1,4 @@
 import pytz
-
-from main import GoogleDriveDownloader
 import gspread
 import pandas as pd
 import uuid
@@ -328,47 +326,5 @@ def update_gcs_files(gcp_bucket, spreadsheet_name, sheet_name, update_sheet: boo
         return unconverted_files
 
 
-def move_matching_files(source_bucket, target_bucket, csv_file=None):
-    def load_csv_to_dataframe(csv_file_path):
-        df = pd.read_csv(csv_file_path, encoding="utf-8")
-        """Load the CSV file into a Pandas DataFrame and return the 'file_name' column as a set."""
-        if "raw" in source_bucket.name:
-            df_filtered = df[df["bucket"].str.contains("raw", na=False, case=False)]
-        elif "storage" in source_bucket.name:
-            df_filtered = df[df["bucket"].str.contains("storage", na=False, case=False)]
-        else:
-            df_filtered = df  # No filtering if neither "raw" nor "storage" is in the name
 
-        return set(df_filtered["file_name"].dropna())  # Drop NaN and convert to a set
 
-    """Move matching files from one bucket to another, preserving the folder structure."""
-    if csv_file:
-        filenames_to_match = load_csv_to_dataframe(csv_file)
-
-        blobs = source_bucket.list_blobs()  # Get all objects in the source bucket
-        for blob in blobs:
-            file_name = blob.name.split("/")[-1]  # Extract just the filename
-            if file_name in filenames_to_match:
-                # Preserve the folder structure
-                # new_blob_name = blob.name.replace(source_bucket.name, target_bucket.name)
-                print(f"Moving: {blob.name}")
-
-                # Copy to the target bucket
-                new_blob = target_bucket.blob(blob.name)
-                new_blob.rewrite(blob)
-
-                # while True:
-                #     user_input = input(f"Proceed with this deletion {blob.name}? (yes/no): ").strip().lower()
-                #     if user_input in ["y", "yes"]:
-                #         break  # Continue loop
-                #     elif user_input in ["n", "no"]:
-                #         print("❌ Process terminated by user.")
-                #         return  # Exit the function
-                #     else:
-                #         print("⚠️ Invalid input. Please enter 'yes' or 'no'.")
-
-                # Delete the original file from the source bucket
-                blob.delete()
-                print(f"Deleted original: {blob.name}")
-    else:
-        pass

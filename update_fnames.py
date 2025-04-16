@@ -30,7 +30,6 @@ from moviepy.editor import VideoFileClip
 import meta_extract.get_device_id as device
 from meta_extract.get_highlight_flags import examine_mp4, sec2dtime
 
-from gcp_storage_services import GCPStorageServices
 
 # all meta data types that we want to extract
 ALL_METAS = [
@@ -48,7 +47,6 @@ logging.basicConfig(
 
 
 class GoogleDriveDownloader:
-    storage_client_instance = GCPStorageServices()
 
     def __init__(self, args):
         self.args = args
@@ -352,7 +350,7 @@ class GoogleDriveDownloader:
 
     def build_google_drive_service(self, service_type='drive'):
         creds = None
-        token_path = os.path.join(self.args.cred_folder, 'token.json')
+        token_path = os.path.join(self.args.cred_folder, 'google_api_token.json')
         if os.path.exists(token_path):
             creds = Credentials.from_authorized_user_file(token_path, self.SCOPES)
         if not creds or not creds.valid:

@@ -38502,3 +38502,169 @@ Error message: None
 2025-03-17 14:42:25,546 - root - ERROR - File ID not found for None
 2025-03-17 14:42:25,546 - root - INFO - File GX010053 for 00240001 cannot be processed at this time.
 2025-03-17 14:42:25,546 - root - ERROR - File ID not found for None
+2025-03-17 15:52:38,766 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-17 15:52:38,769 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-17 15:52:39,718 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-17 15:52:40,212 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-17 15:52:41,983 - root - ERROR - File ID not found for 00400001/By Date/12.16.2024-12.22.2024/GX010107.MP4
+2025-03-17 15:52:41,986 - root - INFO - Creating babyview_main_blackout bucket...
+2025-03-17 15:52:42,801 - root - INFO - File id not available for None
+2025-03-17 18:00:41,992 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-17 18:00:42,010 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-17 18:00:42,874 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-17 18:00:43,187 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_blackout', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-17 18:06:51,841 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-17 18:06:51,857 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-17 18:06:52,642 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-17 18:06:53,035 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_blackout', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-18 11:46:38,294 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 11:46:38,325 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 11:46:39,176 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-18 11:46:39,654 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_blackout', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-18 11:46:41,552 - root - ERROR - File ID not found for 00400001/By Date/12.16.2024-12.22.2024/GX010107.MP4
+2025-03-18 11:47:50,476 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 11:47:50,491 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 11:47:51,070 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-18 11:47:51,538 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_blackout', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-18 11:47:53,300 - root - ERROR - File ID not found for 00400001/By Date/12.16.2024-12.22.2024/GX010107.MP4
+2025-03-18 11:50:24,105 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 11:50:24,120 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 11:50:24,632 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-18 11:50:25,090 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_blackout', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-18 11:50:26,899 - root - ERROR - File ID not found for 00400001/By Date/12.16.2024-12.22.2024/GX010107.MP4
+2025-03-18 11:52:40,148 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 11:52:40,163 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 11:52:41,137 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-18 11:52:41,639 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_blackout', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-18 15:36:52,906 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 15:36:52,939 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 15:36:53,849 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-18 15:36:54,398 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_blackout', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-18 15:40:47,220 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 15:40:47,238 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-18 15:40:48,021 - root - INFO - Tracking sheet Ongoing_data_collection loaded.
+2025-03-18 15:40:48,352 - root - INFO - GCP_existing_buckets: ['babyview_bing_raw', 'babyview_bing_raw_backup', 'babyview_bing_storage', 'babyview_bing_storage_backup', 'babyview_bing_whisper', 'babyview_main_blackout', 'babyview_main_raw', 'babyview_main_raw_backup', 'babyview_main_storage', 'babyview_main_storage_backup', 'babyview_videos_to_check_raw', 'babyview_videos_to_check_storage', 'gcf-v2-sources-1042259531418-us-central1', 'gcf-v2-uploads-1042259531418-us-central1', 'hs-babyview-logs', 'hs-babyview.appspot.com', 'raw_test', 'staging.hs-babyview.appspot.com', 'us.artifacts.hs-babyview.appspot.com']
+2025-03-19 19:27:52,902 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-19 19:30:04,255 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-19 19:31:26,499 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-19 19:33:51,418 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 10:30:30,369 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 10:38:30,734 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 10:40:27,143 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 10:40:27,909 - root - ERROR - File ID not found for None
+2025-03-20 11:19:13,691 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 11:22:29,737 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 11:27:44,729 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 11:29:53,273 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 15:46:32,811 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 15:48:29,112 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 15:51:57,130 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 15:54:35,533 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-20 16:03:12,563 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-21 16:50:15,374 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-21 16:54:14,290 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-21 17:03:18,603 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-21 21:04:13,858 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-21 21:05:21,725 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 10:43:21,437 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 10:45:57,854 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 11:13:33,427 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 11:17:58,904 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 14:23:28,213 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 14:26:44,181 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 14:29:07,059 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 14:30:05,324 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 15:37:45,322 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 15:40:31,069 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 15:40:31,605 - root - INFO - Creating babyview_main_test_raw bucket...
+2025-03-24 15:40:32,530 - root - INFO - Creating babyview_main_test_storage bucket...
+2025-03-24 15:40:33,361 - root - INFO - Creating babyview_main_test_blackout bucket...
+2025-03-24 15:40:34,295 - root - INFO - Creating babyview_bing_test_storage bucket...
+2025-03-24 15:40:34,986 - root - INFO - Creating babyview_bing_test_blackout bucket...
+2025-03-24 15:42:23,609 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 16:03:23,921 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 16:05:14,745 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 16:12:25,636 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 16:25:08,103 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 16:27:42,488 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 16:30:19,470 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-24 16:48:34,504 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-26 09:15:30,648 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-26 09:19:18,518 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-26 09:21:47,673 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-26 11:16:48,617 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-26 11:33:31,240 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-26 11:39:11,893 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-26 12:17:47,297 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-26 12:19:21,415 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-26 12:19:54,521 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-26 12:20:49,226 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-26 12:21:22,213 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-26 12:21:34,468 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-26 12:22:32,708 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-27 11:14:57,743 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-27 11:56:08,984 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-27 12:04:29,661 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-27 12:05:27,813 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-27 12:06:36,303 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-27 12:09:41,503 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-27 12:11:45,477 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-27 12:12:30,290 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-27 12:13:15,535 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-27 12:14:44,032 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-27 12:16:16,570 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-27 12:16:59,271 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-27 12:17:52,527 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-27 12:20:56,490 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-27 12:23:27,426 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-28 09:19:22,592 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-28 09:21:32,003 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-28 11:04:52,431 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-28 11:08:02,411 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-28 11:18:58,959 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-28 11:47:46,066 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-28 12:05:06,292 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-03-28 16:07:17,847 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-04 15:02:52,029 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-04 15:02:52,519 - root - INFO - Creating babyview_bing_blackout bucket...
+2025-04-04 15:05:43,882 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-04 15:31:45,046 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-04 16:06:09,133 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-04 16:16:49,810 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-04 16:23:34,786 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-04 16:27:55,142 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-04 16:33:45,067 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-09 11:48:13,925 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-09 11:55:08,257 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-09 12:02:32,824 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-09 12:05:09,787 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-09 12:05:43,532 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-09 12:11:12,723 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-09 12:11:41,359 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-09 12:17:12,705 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 09:31:01,202 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 10:36:34,659 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 10:40:34,217 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 10:42:03,229 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 10:43:58,659 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 11:06:35,527 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 11:42:45,707 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 11:44:29,591 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 12:17:11,992 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 15:23:46,751 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 16:37:34,888 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 16:40:23,739 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 16:42:05,955 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 16:43:04,959 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 16:44:46,183 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 16:45:41,588 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 16:47:48,053 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 16:52:45,941 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 16:53:26,733 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 16:57:19,013 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-14 16:58:10,147 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-15 09:08:38,269 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-15 09:16:53,489 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-15 11:39:38,882 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-15 11:48:33,417 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
+2025-04-15 12:23:20,286 - googleapiclient.discovery_cache - INFO - file_cache is only supported with oauth2client<4.0.0
