@@ -9,7 +9,15 @@ A pipeline for downloading, compressing, and managing video metadata from the Go
 ```sh
 pip install -r requirements.txt
 ```
-
+## Build parser file 
+```sh
+git clone https://github.com/gopro/gpmf-parser.git
+mkdir build
+cd build
+cmake ..
+make
+```
+Then edit the parser file in settings
 ## Creds and temp file path setup
 
 1. Prepare to have credentials.json, hs-babyview-sa.json and token.json ready in the creds folder

@@ -9,6 +9,7 @@ from controllers import FileProcessor
 from airtable_services import AirtableServices
 from gcp_storage_services import GCPStorageServices
 
+
 airtable = AirtableServices()
 downloader = GoogleDriveDownloader()
 storage = GCPStorageServices()
@@ -246,9 +247,16 @@ def main():
         filter_key = args.filter_key
         filter_value = args.filter_value
 
-    video_tracking_data = airtable.get_video_info_from_video_table(filter_key=filter_key, filter_value=filter_value)
-    print(video_tracking_data, len(video_tracking_data))
-    process(video_tracking_data=video_tracking_data)
+    # video_tracking_data = airtable.get_video_info_from_video_table(filter_key=filter_key, filter_value=filter_value)
+    # print(video_tracking_data, len(video_tracking_data))
+    # process(video_tracking_data=video_tracking_data)
+    from video import Video
+    v = Video({'date': '2024-01-01'})
+    local_raw_download_path = os.path.join(settings.raw_file_root, 'BabyView_Main', 'S01420001_rec0NwEqXa9gYtbyX.MP4')
+    v.local_raw_download_path = Path(local_raw_download_path).resolve()
+    file_processor = FileProcessor(video=v)
+    h, m = file_processor.highlight_detection()
+    print(h, m)
 
 
 if __name__ == '__main__':
