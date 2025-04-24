@@ -14,219 +14,243 @@ downloader = GoogleDriveDownloader()
 storage = GCPStorageServices()
 
 
-def make_local_directory(video):
-    if not os.path.exists(settings.raw_file_root):
-        os.makedirs(settings.raw_file_root, exist_ok=True)
-    if not os.path.exists(settings.process_file_root):
-        os.makedirs(settings.process_file_root, exist_ok=True)
+class VideoStatus:
+    REMOVED = "Removed from GCP"
+    PROCESSED = "Processed"
+    NOT_FOUND = "Not found"
+    META_FAIL = "Meta extraction failed"
+    HIGHLIGHTS_DETECTED = "Highlights detected"
+    REMOVE_FAIL = "Remove from GCP fail"
 
-    entry_point = settings.google_drive_entry_point_folder_names[1] if 'bing' in video.dataset.lower() else \
-        settings.google_drive_entry_point_folder_names[0]
+
+class Step:
+    DELETE = "delete"
+    DOWNLOAD = "download"
+    META = "meta_extract"
+    HIGHLIGHT = "get_highlights"
+    ZIP = "zip"
+    COMPRESS = "compress"
+    UPLOAD_ZIP = "upload_zip"
+    UPLOAD_COMPRESS = "upload_compress"
+    UPLOAD_RAW = "upload_raw"
+
+
+def make_local_directory(video):
+    os.makedirs(settings.raw_file_root, exist_ok=True)
+    os.makedirs(settings.process_file_root, exist_ok=True)
+
+    entry_point = settings.google_drive_entry_point_folder_names[1] if 'bing' in video.dataset.lower() \
+        else settings.google_drive_entry_point_folder_names[0]
+
     local_raw_download_path = os.path.join(settings.raw_file_root, entry_point, video.gcp_raw_location)
     local_raw_download_folder = os.path.dirname(local_raw_download_path)
     local_processed_folder = os.path.join(settings.process_file_root, entry_point, video.subject_id,
                                           video.gopro_video_id)
-    local_processed_meta_data_folder = os.path.join(settings.process_file_root, entry_point, video.subject_id,
-                                                    video.gopro_video_id, f'{video.gcp_file_name}_metadata')
-    local_processed_highlights_device_info_folder = os.path.join(settings.process_file_root, entry_point,
-                                                                 video.subject_id,
-                                                                 video.gopro_video_id, 'highlights_device_info')
+    local_processed_meta_data_folder = os.path.join(local_processed_folder, f'{video.gcp_file_name}_metadata')
 
-    if not os.path.exists(local_raw_download_folder):
-        os.makedirs(local_raw_download_folder, exist_ok=True)
-
-    if not os.path.exists(local_processed_folder):
-        os.makedirs(local_processed_folder, exist_ok=True)
-
-    if not os.path.exists(local_processed_highlights_device_info_folder):
-        os.makedirs(local_processed_highlights_device_info_folder, exist_ok=True)
-
-    if not os.path.exists(local_processed_meta_data_folder):
-        os.makedirs(local_processed_meta_data_folder, exist_ok=True)
+    for folder in [local_raw_download_folder, local_processed_folder, local_processed_meta_data_folder]:
+        os.makedirs(folder, exist_ok=True)
 
     return Path(local_raw_download_path).resolve(), Path(local_processed_folder).resolve()
 
 
-def process(video_tracking_data):
-    logs = {
-        'process_raw_success': [],
-        'process_raw_fail': [],
-        'storage_upload_success': [],
-        'storage_upload_fail': [],
-        'meta_extract_fail': [],
-        'get_highlights_fail': [],
-        'compress_zip_fail': [],
-        'highlights_video_migration': [],
-        'gopro_highlight_detected': [],
-        'file_deletion': [],
+def fail_step(logs, video, step, msg):
+    result = {
+        "video_id": video.unique_video_id,
+        "subject_id": video.subject_id,
+        "step": step,
+        "message": msg,
     }
+    print(result)
+    logs[f'{step}_fail'].append(result)
+    return False
 
-    storage.check_gcs_buckets()
-    if video_tracking_data.empty:
-        logs['airtable'] = "No_Record_From_Airtable."
-    else:
-        logs['airtable'] = f"{len(video_tracking_data)}_Loaded"
 
-        downloading_file_info, downloading_file_info_log = downloader.get_downloading_file_paths(
-            video_info_from_tracking=video_tracking_data)
-        logs['loading_download_info_error'] = downloading_file_info_log
-        for video in downloading_file_info:
-            raw_download_success = False
-            raw_upload_success = False
-            # Step 0 Check if video needs to be deleted from buckets.
-            if video.status.lower() in ['update', 'delete']:
-                delete_success = []
-                for gcp_bucket in [f"{video.gcp_bucket_name}_raw", f"{video.gcp_bucket_name}_storage",
-                                   f"{video.gcp_bucket_name}_blackout"]:
-                    success, delete_msg = storage.delete_blobs_with_substring(bucket_name=gcp_bucket,
-                                                                              file_substring=video.unique_video_id)
-                    delete_success.append(success)
-                    if delete_msg:
-                        logs['file_deletion'].append(delete_msg)
-                if video.status.lower() == 'delete' and any(d == True for d in delete_success):
-                    video.status = 'Removed from GCP'
+def handle_deletion(video, logs):
+    delete_ok = True
+    for gcp_bucket in [f"{video.gcp_bucket_name}_raw", f"{video.gcp_bucket_name}_storage", "babyview_hilight"]:
+        success, msg = storage.delete_blobs_with_substring(gcp_bucket, video.unique_video_id)
+        if msg:
+            print(f'Deletion msg: {msg}')
+            logs['file_deletion'].append(msg)
+        delete_ok &= success
 
-            # Step 1. Download the raw video file if file id is available
-            if video.google_drive_file_id and video.status.lower() != 'delete':
-                video.local_raw_download_path, video.local_processed_folder = make_local_directory(video)
+    if not delete_ok:
+        video.status = VideoStatus.REMOVE_FAIL
+        return fail_step(logs, video, Step.DELETE, "Some files failed deletion")
 
-                raw_download_success, raw_download_error_msg = downloader.download_file(
-                    local_raw_download_folder=video.local_raw_download_path, video=video)
-                if raw_download_error_msg:
-                    logs['process_raw_fail'].append(
-                        f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}_{raw_download_error_msg}')
+    if video.status.lower() == 'delete':
+        video.status = VideoStatus.REMOVED
+        return False
 
-            else:
-                logs['process_raw_fail'].append(
-                    f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}_no_drive_file_id')
-                video.status = 'Not found'
+    return True
 
-            # Step 2. Upload raw video file to GCS if download is successful.
-            if raw_download_success and not raw_upload_success:
-                if video.blackout_region:
-                    raw_gcp_bucket = f"{video.gcp_bucket_name}_blackout"
-                    video.status = 'To blackout'
-                else:
-                    raw_gcp_bucket = f"{video.gcp_bucket_name}_raw"
-                print(f"Uploading {video.gcp_file_name} to {raw_gcp_bucket}/{video.gcp_raw_location}")
 
-                raw_upload_success, raw_upload_error_msg = storage.upload_file_to_gcs(
-                    source_file_name=video.local_raw_download_path,
-                    destination_path=video.gcp_raw_location,
-                    gcp_bucket=raw_gcp_bucket)
-                # raw_upload_msg, raw_upload_success = "Test", True
-                if raw_upload_error_msg:
-                    logs['process_raw_fail'].append(
-                        f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}_{raw_upload_error_msg}')
-                else:
-                    logs['process_raw_success'].append(
-                        f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}_uploaded_to_{raw_gcp_bucket}/{video.gcp_raw_location}')
-            # Step 3. If raw upload success, extract meta, get highlights from go pro.
-            file_processor = FileProcessor(video=video)
-            video.duration = file_processor.get_video_duration()
-            if raw_upload_success and not video.blackout_region:
-                # LUNA avi videos do not have meta data, will just compress, but GoPro videos have metadata
-                if 'luna' in video.gopro_video_id.lower() or video.gcp_raw_location.lower().endswith('lrv'):
-                    video.meta_extract = True
-                else:
-                    meta_data_output, meta_extract_error_msg = file_processor.extract_meta()
-                    if meta_extract_error_msg:
-                        print(meta_extract_error_msg)
-                        logs['meta_extract_fail'].append(
-                            f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}_{meta_extract_error_msg}')
-                        video.status = 'Meta extraction failed'
-                    else:
-                        video.meta_extract = True
+def download_video(video, processor, logs):
+    if not video.google_drive_file_id:
+        video.status = VideoStatus.NOT_FOUND
+        return False
 
-                    if video.meta_extract:
-                        video.highlight, highlights_error_msg = file_processor.highlight_detection()
-                        if highlights_error_msg:
-                            print(highlights_error_msg)
-                            logs['get_highlights_fail'].append(
-                                f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}_{highlights_error_msg}')
-                        if video.highlight:
-                            move_highlights_success, move_highlights_msg = storage.move_matching_files(
-                                source_bucket_name=f"{video.gcp_bucket_name}_raw",
-                                target_bucket_name=f"{video.gcp_bucket_name}_blackout",
-                                file_uniq_id=video.unique_video_id)
-                            logs['gopro_highlight_detected'].append(move_highlights_msg)
-                            video.status = 'Gopro highlight detected'
-            # Step 4. Create zip file, compress video and upload it and the video to GCS
-            if video.meta_extract and not video.highlight:
-                # Zip non-luna meta and upload to GCS
-                zipped_file_error_msg = None
-                if 'luna' not in video.gopro_video_id.lower():
-                    video.zipped_file_path, zipped_file_error_msg = file_processor.zip_files()
-                    if zipped_file_error_msg:
-                        print(f'{video.unique_video_id}_{zipped_file_error_msg}')
-                        logs['compress_zip_fail'].append(
-                            f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}: zip_failed_{zipped_file_error_msg}')
-                        video.status = 'Compress zip failed'
-                    else:
-                        video.gcp_storage_zip_location = f"{video.subject_id}/{os.path.basename(video.zipped_file_path)}"
-                        zipped_upload_success, zipped_upload_msg = storage.upload_file_to_gcs(
-                            source_file_name=video.zipped_file_path, destination_path=video.gcp_storage_zip_location,
-                            gcp_bucket=f"{video.gcp_bucket_name}_storage")
-                        if zipped_upload_msg:
-                            print(f'{video.unique_video_id}_{zipped_upload_msg}')
-                            logs['storage_upload_fail'].append(
-                                f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}: zip_upload_fail_{zipped_upload_msg}')
-                            video.status = 'Compress zip failed'
-                # Compress all vids and upload to GCS
-                video.compress_video_path, compress_error_msg = file_processor.compress_vid()
-                if compress_error_msg:
-                    print(f'{video.unique_video_id}_{compress_error_msg}')
-                    logs['compress_zip_fail'].append(
-                        f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}: compress_fail_{compress_error_msg}')
-                    video.status = 'Compress zip failed'
-                else:
-                    video.gcp_storage_video_location = f"{video.subject_id}/{os.path.basename(video.compress_video_path)}"
-                    compress_upload_success, compress_upload_msg = storage.upload_file_to_gcs(
-                        source_file_name=video.compress_video_path,
-                        destination_path=video.gcp_storage_video_location,
-                        gcp_bucket=f"{video.gcp_bucket_name}_storage")
-                    if compress_upload_msg:
-                        print(f'{video.unique_video_id}_{compress_upload_msg}')
-                        logs['storage_upload_fail'].append(
-                            f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}: compress_upload_fail_{compress_upload_msg}')
-                        video.status = 'Compress zip failed'
+    video.local_raw_download_path, video.local_processed_folder = make_local_directory(video)
+    success, msg = downloader.download_file(video.local_raw_download_path, video)
+    if msg:
+        return fail_step(logs, video, Step.DOWNLOAD, msg)
 
-                if compress_error_msg or zipped_file_error_msg:
-                    success, delete_msg = storage.delete_blobs_with_substring(
-                        bucket_name=f"{video.gcp_bucket_name}_storage",
-                        file_substring=video.unique_video_id)
-                    video.status = 'Compress zip failed'
-                    if delete_msg:
-                        logs['file_deletion'].append(delete_msg)
-                else:
-                    print(
-                        f"Uploaded {video.gcp_file_name} to {video.gcp_bucket_name}_storage/{video.gcp_storage_video_location} and {video.gcp_storage_zip_location}")
-                    logs['storage_upload_success'].append(
-                        f'{video.unique_video_id}_{video.subject_id}_{video.gopro_video_id}')
-                    # video.duration = file_processor.get_compressed_video_duration(
-                    #     compressed_video_path=video.compress_video_path)
-                    video.status = 'Processed'
+    video.duration = processor.get_video_duration()
 
-            file_processor.clear_directory_contents_raw_storage()
-            print(video.to_dict())
-            # Step 5. Update the video info with the processed date and duration on the tracking sheet
+    return True
+
+
+def process_metadata(video, processor, logs):
+    if 'luna' in video.gopro_video_id.lower() or video.gcp_raw_location.lower().endswith('lrv'):
+        return True
+
+    meta_data_output, meta_err = processor.extract_meta()
+    if meta_err:
+        video.status = VideoStatus.META_FAIL
+        fail_step(logs, video, Step.META, meta_err)
+        return True  # still continue even on meta failure
+
+    video.highlight, hi_err = processor.highlight_detection()
+    if hi_err:
+        return fail_step(logs, video, Step.HIGHLIGHT, hi_err)
+
+    if video.highlight:
+        logs['highlight_detected'].append(video.unique_video_id)
+        video.status = VideoStatus.HIGHLIGHTS_DETECTED
+
+    return True
+
+
+def upload_raw(video, logs):
+    bucket = "babyview_hilight" if video.highlight else f"{video.gcp_bucket_name}_raw"
+    success, msg = storage.upload_file_to_gcs(video.local_raw_download_path, video.gcp_raw_location, bucket)
+    if msg:
+        return fail_step(logs, video, Step.UPLOAD_RAW, msg)
+    print(f'Uploading: {video.unique_video_id} to {bucket}/{video.gcp_raw_location}')
+    logs['process_raw_success'].append(f'{video.unique_video_id} to {bucket}/{video.gcp_raw_location}')
+    return True
+
+
+def zip_metadata(video, processor, logs):
+    video.zipped_file_path, zip_err = processor.zip_files()
+    if zip_err:
+        return fail_step(logs, video, Step.ZIP, zip_err)
+
+    video.gcp_storage_zip_location = f"{video.subject_id}/{os.path.basename(video.zipped_file_path)}"
+    _, zip_upload_msg = storage.upload_file_to_gcs(
+        video.zipped_file_path,
+        video.gcp_storage_zip_location,
+        f"{video.gcp_bucket_name}_storage")
+    if zip_upload_msg:
+        return fail_step(logs, video, Step.UPLOAD_ZIP, zip_upload_msg)
+
+    return True
+
+
+def compress_and_upload(video, processor, logs):
+    video.compress_video_path, compress_err = processor.compress_vid()
+    if compress_err:
+        return fail_step(logs, video, Step.COMPRESS, compress_err)
+
+    video.gcp_storage_video_location = f"{video.subject_id}/{os.path.basename(video.compress_video_path)}"
+    _, compress_upload_msg = storage.upload_file_to_gcs(
+        video.compress_video_path,
+        video.gcp_storage_video_location,
+        f"{video.gcp_bucket_name}_storage")
+    if compress_upload_msg:
+        return fail_step(logs, video, Step.UPLOAD_COMPRESS, compress_upload_msg)
+
+    logs['storage_upload_success'].append(f'{video.unique_video_id}_{video.subject_id}')
+    video.status = VideoStatus.PROCESSED
+    return True
+
+
+def process_single_video(video, logs):
+    processor = FileProcessor(video)
+    error_occurred = False
+
+    try:
+        # Step 1:
+        # If status == delete, delete orig files and mark airtable
+        # If status == reprocess, delete orig files and continue processing
+        if video.status and video.status.lower() in ['delete', 'reprocess']:
+            result = handle_deletion(video, logs)
+            if result is False:
+                return
+        # Step 2:
+        # Download the video from Google Drive
+        if not download_video(video, processor, logs):
+            error_occurred = True
+            return
+
+        # Step 3:
+        # Extract meta data and detect hilights from video, upload raw to bucket
+        if not process_metadata(video, processor, logs):
+            return
+        if video.status in [VideoStatus.META_FAIL, VideoStatus.HIGHLIGHTS_DETECTED]:
+            if not upload_raw(video, logs):
+                error_occurred = True
+            return  # ensure stop after raw upload in these cases
+        else:
+            if not upload_raw(video, logs):
+                error_occurred = True
+                return
+
+        # Step 4:
+        # Zip and compress the meta data and vid, upload to storage bucket
+        if 'luna' not in video.gopro_video_id.lower() and not video.gcp_raw_location.lower().endswith('lrv'):
+            if not zip_metadata(video, processor, logs):
+                error_occurred = True
+                return
+
+        if not compress_and_upload(video, processor, logs):
+            error_occurred = True
+            return
+
+        video.status = VideoStatus.PROCESSED
+
+    except Exception as e:
+        error_occurred = True
+        logs['unexpected_error'].append(f'{video.unique_video_id}_{str(e)}')
+
+    finally:
+        if not error_occurred:
             video.pipeline_run_date = datetime.now().strftime("%Y-%m-%d")
-            data = {
+            airtable.update_video_table_single_video(video.unique_video_id, {
                 'pipeline_run_date': video.pipeline_run_date,
                 'status': video.status,
                 'duration_sec': video.duration,
-                'gcp_raw_location': f'{video.gcp_bucket_name}_raw/{video.gcp_raw_location}',
+                'gcp_raw_location': f'{video.gcp_bucket_name}_raw/{video.gcp_raw_location}' if video.local_raw_download_path else None,
                 'gcp_storage_video_location': f'{video.gcp_bucket_name}_storage/{video.gcp_storage_video_location}' if video.gcp_storage_video_location else None,
                 'gcp_storage_zip_location': f'{video.gcp_bucket_name}_storage/{video.gcp_storage_zip_location}' if video.gcp_storage_zip_location else None,
-            }
-            airtable.update_video_table_single_video(video_unique_id=video.unique_video_id, data=data)
+            })
 
-    # print(logs)
-    # Step 6. Upload logs to GCS
-    log_name = f"hs-babyview-upload-log-{datetime.now().strftime('%Y%m%d%H%M%S')}.json"
-    storage.upload_dict_to_gcs(
-        data=logs, bucket_name="hs-babyview-logs", filename=log_name
-    )
+        processor.clear_directory_contents_raw_storage()
+
+
+def process_videos(video_tracking_data):
+    from collections import defaultdict
+    logs = defaultdict(list)
+
+    storage.check_gcs_buckets()
+
+    if video_tracking_data.empty:
+        logs['airtable'].append("No_Record_From_Airtable.")
+        return dict(logs)
+
+    logs['airtable'].append(f"{len(video_tracking_data)}_Loaded")
+    downloading_file_info, log_message = downloader.get_downloading_file_paths(
+        video_info_from_tracking=video_tracking_data)
+    logs['loading_download_info_error'].append(log_message)
+
+    for video in downloading_file_info:
+        process_single_video(video, logs)
+
+    log_name = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_logs.json"
+    storage.upload_dict_to_gcs(dict(logs), "hs-babyview-logs", log_name)
+
+    return dict(logs)
 
 
 def main():
@@ -248,7 +272,14 @@ def main():
 
     video_tracking_data = airtable.get_video_info_from_video_table(filter_key=filter_key, filter_value=filter_value)
     print(video_tracking_data, len(video_tracking_data))
-    process(video_tracking_data=video_tracking_data)
+    process_videos(video_tracking_data=video_tracking_data)
+    # from video import Video
+    # v = Video({'date': '2024-01-01'})
+    # local_raw_download_path = os.path.join(settings.raw_file_root, 'BabyView_Main', 'S01420001_rec0NwEqXa9gYtbyX.MP4')
+    # v.local_raw_download_path = Path(local_raw_download_path).resolve()
+    # file_processor = FileProcessor(video=v)
+    # h, m = file_processor.highlight_detection()
+    # print(h, m)
 
 
 if __name__ == '__main__':

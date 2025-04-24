@@ -6,6 +6,7 @@
 creds/
 data/
 gpmf-parser/
+gpmf-parser-exec
 /data/release_1.0
 .DS_Store
 data/.DS_Store

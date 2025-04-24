@@ -125,7 +125,6 @@ class FileProcessor:
                     output_text_list.append(output_text)
                 except UnicodeDecodeError:
                     output_text = result.stdout.decode('utf-8', 'replace')  # Replace or ignore invalid characters
-                    output_text_list.append(output_text)
                 if 'error' in output_text.lower():
                     error_msg = f'Error executing command: {cmd}\nError message: {output_text}'
                     output_text_list = []
@@ -357,38 +356,37 @@ class FileProcessor:
         return zipfile_path, error
 
     def clear_directory_contents_raw_storage(self):
-        """ Remove everything inside a directory path """
-        raw_folder = Path(self.video.local_raw_download_path).parents[2]
-        processed_folder = Path(self.video.local_processed_folder).parents[1]
-        if not os.path.isdir(raw_folder) or not os.path.isdir(self.video.local_processed_folder):
-            print(f"The specified {raw_folder} does not exist.")
+        """Remove everything inside raw and processed folders safely."""
+        def safe_clear_dir(folder_path):
+            if not folder_path:
+                print("Provided folder path is None.")
+                return
+            if not os.path.isdir(folder_path):
+                print(f"The specified folder does not exist or is not a directory: {folder_path}")
+                return
+
+            for filename in os.listdir(folder_path):
+                file_path = os.path.join(folder_path, filename)
+                try:
+                    if os.path.isfile(file_path) or os.path.islink(file_path):
+                        os.remove(file_path)
+                    elif os.path.isdir(file_path):
+                        shutil.rmtree(file_path)
+                except Exception as e:
+                    print(f"Failed to delete {file_path}. Reason: {e}")
+
+        try:
+            raw_folder = Path(self.video.local_raw_download_path).parents[
+                2] if self.video.local_raw_download_path else None
+            processed_folder = Path(self.video.local_processed_folder).parents[
+                1] if self.video.local_processed_folder else None
+        except Exception as e:
+            print(f"Error resolving folder paths: {e}")
             return
 
-        if not os.path.isdir(self.video.local_processed_folder):
-            print(f"The specified {self.video.local_processed_folder} does not exist.")
-            return
+        safe_clear_dir(str(raw_folder) if raw_folder else None)
+        safe_clear_dir(str(processed_folder) if processed_folder else None)
 
-        for filename in os.listdir(raw_folder):
-            file_path = os.path.join(raw_folder, filename)
-            try:
-                if os.path.isfile(file_path) or os.path.islink(file_path):
-                    os.remove(file_path)
-
-                elif os.path.isdir(file_path):
-                    shutil.rmtree(file_path)
-            except Exception as e:
-                print(f"Failed to delete {file_path}. Reason: {e}")
-
-        for filename in os.listdir(processed_folder):
-            file_path = os.path.join(processed_folder, filename)
-            try:
-                if os.path.isfile(file_path) or os.path.islink(file_path):
-                    os.remove(file_path)
-
-                elif os.path.isdir(file_path):
-                    shutil.rmtree(file_path)
-            except Exception as e:
-                print(f"Failed to delete {file_path}. Reason: {e}")
 
 
 def miscellaneous_features():
