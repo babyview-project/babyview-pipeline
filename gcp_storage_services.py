@@ -142,7 +142,7 @@ class GCPStorageServices:
         for folder_name in settings.google_drive_entry_point_folder_names:
             storage_bucket = f'{folder_name}_storage'.lower()
             raw_bucket = f'{folder_name}_raw'.lower()
-            black_out_bucket = f'{folder_name}_blackout'.lower()
+            # black_out_bucket = f'{folder_name}_blackout'.lower()
 
             if raw_bucket not in self.gcs_buckets:
                 logging.info(f"Creating {raw_bucket} bucket...")
@@ -152,9 +152,9 @@ class GCPStorageServices:
                 logging.info(f"Creating {storage_bucket} bucket...")
                 self.create_gcs_buckets(storage_bucket)
 
-            if black_out_bucket not in self.gcs_buckets:
-                logging.info(f"Creating {black_out_bucket} bucket...")
-                self.create_gcs_buckets(black_out_bucket)
+            # if black_out_bucket not in self.gcs_buckets:
+            #     logging.info(f"Creating {black_out_bucket} bucket...")
+            #     self.create_gcs_buckets(black_out_bucket)
 
     def list_gcs_buckets(self):
         # List all buckets
