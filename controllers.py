@@ -17,7 +17,7 @@ from tqdm import tqdm
 from datetime import datetime
 from string import ascii_uppercase
 from typing import List, Dict, Any
-from telemetry_parser import Parser
+
 from pathlib import Path
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
