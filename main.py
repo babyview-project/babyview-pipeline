@@ -15,13 +15,16 @@ storage = GCPStorageServices()
 
 
 class VideoStatus:
-    REMOVED = "Removed from GCP"
-    PROCESSED = "Processed"
-    NOT_FOUND = "Not found"
-    META_FAIL = "Meta extraction failed"
-    HIGHLIGHTS_DETECTED = "Highlights detected"
-    REMOVE_FAIL = "Remove from GCP fail"
+    TO_BE_DELETED = "To be deleted"
+    TO_BE_REPROCESS = "To be reprocessed"
 
+    REMOVED = "Successfully deleted from GCP"
+    PROCESSED = "Successfully processed"
+
+    META_FAIL = "Error in meta extraction"
+    REMOVE_FAIL = "Error in GCP deletion"
+
+    NOT_FOUND = "Not found"
 
 class Step:
     DELETE = "delete"
@@ -79,7 +82,7 @@ def handle_deletion(video, logs):
         video.status = VideoStatus.REMOVE_FAIL
         return fail_step(logs, video, Step.DELETE, "Some files failed deletion")
 
-    if video.status.lower() == 'delete':
+    if video.status == VideoStatus.TO_BE_DELETED:
         video.status = VideoStatus.REMOVED
         return False
 
@@ -117,13 +120,12 @@ def process_metadata(video, processor, logs):
 
     if video.highlight:
         logs['highlight_detected'].append(video.unique_video_id)
-        video.status = VideoStatus.HIGHLIGHTS_DETECTED
 
     return True
 
 
 def upload_raw(video, logs):
-    bucket = "babyview_hilight" if video.highlight else f"{video.gcp_bucket_name}_raw"
+    bucket = f"{video.gcp_bucket_name}_raw"
     success, msg = storage.upload_file_to_gcs(video.local_raw_download_path, video.gcp_raw_location, bucket)
     if msg:
         return fail_step(logs, video, Step.UPLOAD_RAW, msg)
@@ -174,7 +176,7 @@ def process_single_video(video, logs):
         # Step 1:
         # If status == delete, delete orig files and mark airtable
         # If status == reprocess, delete orig files and continue processing
-        if video.status and video.status.lower() in ['delete', 'reprocess']:
+        if video.status and video.status in [VideoStatus.TO_BE_DELETED, VideoStatus.TO_BE_REPROCESS]:
             result = handle_deletion(video, logs)
             if result is False:
                 return
@@ -186,9 +188,9 @@ def process_single_video(video, logs):
 
         # Step 3:
         # Extract meta data and detect hilights from video, upload raw to bucket
-        if not process_metadata(video, processor, logs):
+        if not process_metadata(video=video, processor=processor, logs=logs):
             return
-        if video.status in [VideoStatus.META_FAIL, VideoStatus.HIGHLIGHTS_DETECTED]:
+        if video.status in [VideoStatus.META_FAIL]:
             if not upload_raw(video, logs):
                 error_occurred = True
             return  # ensure stop after raw upload in these cases
@@ -218,6 +220,7 @@ def process_single_video(video, logs):
         if not error_occurred:
             video.pipeline_run_date = datetime.now().strftime("%Y-%m-%d")
             airtable.update_video_table_single_video(video.unique_video_id, {
+                'hilight_locations': str(video.highlight) if video.highlight else None,
                 'pipeline_run_date': video.pipeline_run_date,
                 'status': video.status,
                 'duration_sec': video.duration,
@@ -273,14 +276,27 @@ def main():
     video_tracking_data = airtable.get_video_info_from_video_table(filter_key=filter_key, filter_value=filter_value)
     print(video_tracking_data, len(video_tracking_data))
     process_videos(video_tracking_data=video_tracking_data)
-    # from video import Video
-    # v = Video({'date': '2024-01-01'})
+
     # local_raw_download_path = os.path.join(settings.raw_file_root, 'BabyView_Main', 'S01420001_rec0NwEqXa9gYtbyX.MP4')
     # v.local_raw_download_path = Path(local_raw_download_path).resolve()
     # file_processor = FileProcessor(video=v)
     # h, m = file_processor.highlight_detection()
     # print(h, m)
 
+    # from video import Video
+    # v = Video({'date': '2024-01-01', })
+    # from collections import defaultdict
+    # logs = defaultdict(list)
+    #
+    # local_raw_download_path = os.path.join('data', 'HERO_Stabilized_1080.mp4')
+    # v.local_processed_folder = os.path.join('data', 'Bones')
+    # v.gcp_file_name = 'HERO_Stabilized_1080'
+    # v.local_raw_download_path = Path(local_raw_download_path).resolve()
+    # v.gcp_raw_location = 'asdf'
+    # v.gopro_video_id = 'asdf'
+    # processor = FileProcessor(v)
+    # r = process_metadata(video=v, processor=processor, logs=logs)
+    # print(r, logs)
 
 if __name__ == '__main__':
     main()

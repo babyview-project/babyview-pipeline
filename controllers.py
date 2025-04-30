@@ -114,8 +114,7 @@ class FileProcessor:
         output_text_list = []
 
         for meta in ALL_METAS:
-            meta_path = os.path.join(self.video.local_processed_folder, f'{self.video.gcp_file_name}_metadata',
-                                     f'{meta}_meta.txt')
+            meta_path = os.path.join(self.video.local_processed_folder, f'{self.video.gcp_file_name}_metadata', f'{meta}_meta.txt')
 
             cmd = f'{settings.gpmf_parser_location} {self.video.local_raw_download_path} -f{meta} -a | tee {meta_path}'
             try:
@@ -199,7 +198,6 @@ class FileProcessor:
             print("")
             print("Filename:", filename)
             print("Found", len(highlights), "Highlight(s)!")
-            print('Here are all Highlights: ', highlights)
 
             return highlights
 
@@ -286,6 +284,7 @@ class FileProcessor:
         try:
             arr = self.examine_mp4(filename=self.video.local_raw_download_path)
             highlights = arr.tolist() if arr.size > 0 else []
+            print('Here are all Highlights: ', highlights)
         except Exception as e:
             msg = f"Error in highlight_detection for {self.video.local_raw_download_path}: {e}"
         return highlights, msg
@@ -357,6 +356,7 @@ class FileProcessor:
 
     def clear_directory_contents_raw_storage(self):
         """Remove everything inside raw and processed folders safely."""
+
         def safe_clear_dir(folder_path):
             if not folder_path:
                 print("Provided folder path is None.")
@@ -386,7 +386,6 @@ class FileProcessor:
 
         safe_clear_dir(str(raw_folder) if raw_folder else None)
         safe_clear_dir(str(processed_folder) if processed_folder else None)
-
 
 
 def miscellaneous_features():
