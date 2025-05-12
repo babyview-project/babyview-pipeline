@@ -30,9 +30,10 @@ class Step:
     DELETE = "delete"
     DOWNLOAD = "download"
     META = "meta_extract"
-    HIGHLIGHT = "get_highlights"
+    # HIGHLIGHT = "get_highlights"
     ZIP = "zip"
     COMPRESS = "compress"
+    ROTATE = 'rotate'
     UPLOAD_ZIP = "upload_zip"
     UPLOAD_COMPRESS = "upload_compress"
     UPLOAD_RAW = "upload_raw"
@@ -114,12 +115,12 @@ def process_metadata(video, processor, logs):
         fail_step(logs, video, Step.META, meta_err)
         return True  # still continue even on meta failure
 
-    video.highlight, hi_err = processor.highlight_detection()
-    if hi_err:
-        return fail_step(logs, video, Step.HIGHLIGHT, hi_err)
-
-    if video.highlight:
-        logs['highlight_detected'].append(video.unique_video_id)
+    # video.highlight, hi_err = processor.highlight_detection()
+    # if hi_err:
+    #     return fail_step(logs, video, Step.HIGHLIGHT, hi_err)
+    #
+    # if video.highlight:
+    #     logs['highlight_detected'].append(video.unique_video_id)
 
     return True
 
@@ -150,10 +151,14 @@ def zip_metadata(video, processor, logs):
     return True
 
 
-def compress_and_upload(video, processor, logs):
+def compress_rotate_and_upload(video, processor, logs):
     video.compress_video_path, compress_err = processor.compress_vid()
     if compress_err:
         return fail_step(logs, video, Step.COMPRESS, compress_err)
+
+    video.compress_video_path, rotate_err = processor.rotate_video()
+    if rotate_err:
+        return fail_step(logs, video, Step.ROTATE, rotate_err)
 
     video.gcp_storage_video_location = f"{video.subject_id}/{os.path.basename(video.compress_video_path)}"
     _, compress_upload_msg = storage.upload_file_to_gcs(
@@ -163,7 +168,7 @@ def compress_and_upload(video, processor, logs):
     if compress_upload_msg:
         return fail_step(logs, video, Step.UPLOAD_COMPRESS, compress_upload_msg)
 
-    logs['storage_upload_success'].append(f'{video.unique_video_id}_{video.subject_id}')
+    logs['storage_upload_success'].append(f'{video.unique_video_id} uploaded to {video.gcp_storage_video_location}')
     video.status = VideoStatus.PROCESSED
     return True
 
@@ -206,7 +211,7 @@ def process_single_video(video, logs):
                 error_occurred = True
                 return
 
-        if not compress_and_upload(video, processor, logs):
+        if not compress_rotate_and_upload(video, processor, logs):
             error_occurred = True
             return
 
@@ -220,7 +225,7 @@ def process_single_video(video, logs):
         if not error_occurred:
             video.pipeline_run_date = datetime.now().strftime("%Y-%m-%d")
             airtable.update_video_table_single_video(video.unique_video_id, {
-                'hilight_locations': str(video.highlight) if video.highlight else None,
+                # 'hilight_locations': str(video.highlight) if video.highlight else None,
                 'pipeline_run_date': video.pipeline_run_date,
                 'status': video.status,
                 'duration_sec': video.duration,
@@ -277,11 +282,13 @@ def main():
     print(video_tracking_data, len(video_tracking_data))
     process_videos(video_tracking_data=video_tracking_data)
 
-    # local_raw_download_path = os.path.join(settings.raw_file_root, 'BabyView_Main', 'S01420001_rec0NwEqXa9gYtbyX.MP4')
-    # v.local_raw_download_path = Path(local_raw_download_path).resolve()
+    # from video import Video
+    # v = Video({'date': '2024-01-01', })
+    # local_raw_download_path = os.path.join(settings.raw_file_root, 'BabyView_Main', 'S00400001_S00400001_2023-06-12_1_recnH3x6JqlT6LsN3.mp4')
+    # v.compress_video_path = local_raw_download_path # Path(local_raw_download_path).resolve()
     # file_processor = FileProcessor(video=v)
-    # h, m = file_processor.highlight_detection()
-    # print(h, m)
+    # path, error_msg = file_processor.rotate_video()
+    # print(path, error_msg)
 
     # from video import Video
     # v = Video({'date': '2024-01-01', })
