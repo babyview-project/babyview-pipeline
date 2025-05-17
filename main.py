@@ -188,7 +188,10 @@ def process_single_video(video, logs):
         # Step 2:
         # Download the video from Google Drive
         if not download_video(video, processor, logs):
-            error_occurred = True
+            if video.status == VideoStatus.NOT_FOUND:
+                error_occurred = False
+            else:
+                error_occurred = True
             return
 
         # Step 3:
