@@ -188,7 +188,7 @@ def process_single_video(video, logs):
         # Step 2:
         # Download the video from Google Drive
         if not download_video(video, processor, logs):
-            if video.status == VideoStatus.NOT_FOUND:
+            if not video.google_drive_file_id:
                 error_occurred = False
             else:
                 error_occurred = True
@@ -231,13 +231,13 @@ def process_single_video(video, logs):
                 # 'hilight_locations': str(video.highlight) if video.highlight else None,
                 'pipeline_run_date': video.pipeline_run_date,
                 'status': video.status,
-                'duration_sec': video.duration,
+                'duration_sec': video.duration if video.duration else None,
                 'gcp_raw_location': f'{video.gcp_bucket_name}_raw/{video.gcp_raw_location}' if video.local_raw_download_path else None,
                 'gcp_storage_video_location': f'{video.gcp_bucket_name}_storage/{video.gcp_storage_video_location}' if video.gcp_storage_video_location else None,
                 'gcp_storage_zip_location': f'{video.gcp_bucket_name}_storage/{video.gcp_storage_zip_location}' if video.gcp_storage_zip_location else None,
             })
-
-        processor.clear_directory_contents_raw_storage()
+        if video.google_drive_file_id:
+            processor.clear_directory_contents_raw_storage()
 
 
 def process_videos(video_tracking_data):

@@ -83,6 +83,7 @@ class GoogleDriveDownloader:
                 print(f'get_downloading_file_paths ready for {video.unique_video_id}.')
                 downloading_file_info.append(video)
             else:
+                downloading_file_info.append(video)
                 errors.append(error_msg)
 
         return downloading_file_info, errors
