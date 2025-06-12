@@ -121,6 +121,7 @@ class FileProcessor:
                 return frame_rate, width, height
             else:
                 raise ValueError("No video stream found in the file.")
+
         # new_width = 360
         # new_height = 640
         new_frame_rate = '30/1'
@@ -181,13 +182,101 @@ class FileProcessor:
             error_msg = f"Error processing video: {self.video.compress_video_path}, {e}"
             print(error_msg)
             return self.video.compress_video_path, error_msg
+
+    def blackout_video(self):
+        from airtable_services import airtable_services
+        try:
+            records = airtable_services.get_blackout_data_by_video_id(self.video.unique_video_id)
+            if not records:
+                return self.video.compress_video_path, None
+
+            blackout_ranges = []
+            mute_ranges = []
+
+            for rec in records:
+                actions = rec.get('fields', {}).get('action', [])
+                if not isinstance(actions, list):
+                    actions = [actions]  # normalize to list
+                actions = [a.lower() for a in actions]
+
+                start = rec.get('fields', {}).get('process_start')
+                end = rec.get('fields', {}).get('process_end')
+                if not (start and end):
+                    continue
+                try:
+                    start_sec = _parse_time_str(start)
+                    end_sec = _parse_time_str(end)
+                except Exception as e:
+                    logging.warning(f"Failed to parse time for record {rec.get('id')}: {e}")
+                    continue
+
+                if 'blackout' in actions:
+                    blackout_ranges.append((start_sec, end_sec))
+                if 'mute' in actions:
+                    mute_ranges.append((start_sec, end_sec))
+
+            if not blackout_ranges and not mute_ranges:
+                return self.video.compress_video_path, None  # nothing to do
+
+            input_path = self.video.compress_video_path
+            output_path = self.video.compress_video_path.replace(".mp4", "_blackout_processed.mp4")
+
+            # Build ffmpeg filter
+            filter_parts = []
+            drawbox_filters = [f"drawbox=enable='between(t,{s},{e})':x=0:y=0:w=iw:h=ih:color=black@1:t=fill"
+                               for s, e in blackout_ranges]
+            volume_conditions = [f"between(t,{s},{e})" for s, e in mute_ranges]
+
+            if drawbox_filters:
+                filter_parts.append(f"[0:v]{','.join(drawbox_filters)}[v]")
+            if volume_conditions:
+                filter_parts.append(f"[0:a]volume=enable='{'+'.join(volume_conditions)}':volume=0[a]")
+
+            filter_complex = ";".join(filter_parts)
+            map_args = []
+            if drawbox_filters:
+                map_args += ["-map", "[v]"]
+            else:
+                map_args += ["-map", "0:v"]
+            if volume_conditions:
+                map_args += ["-map", "[a]"]
+            else:
+                map_args += ["-map", "0:a"]
+
+            cmd = [
+                "ffmpeg", "-y", "-i", input_path,
+                "-filter_complex", filter_complex,
+                *map_args,
+                "-c:v", "libx264", "-c:a", "aac", output_path
+            ]
+
+            subprocess.run(cmd, check=True)
+
+            # Update Airtable rows
+            for rec in records:
+                rec_id = rec.get("id")
+                airtable_services.update_blackout_table_single_video(
+                    rec_id,
+                    {
+                        "process_status": True,
+                        "processed_date": datetime.now().strftime("%Y-%m-%d")
+                    }
+                )
+
+            return output_path, None
+
+        except Exception as e:
+            logging.exception(f"blackout_video failed, {str(e)}")
+            return self.video.compress_video_path, str(e)
+
     def extract_meta(self):
         """Extract specified telemetry tags from a GoPro video and write to separate files."""
         error_msg = None
         output_text_list = []
 
         for meta in ALL_METAS:
-            meta_path = os.path.join(self.video.local_processed_folder, f'{self.video.gcp_file_name}_metadata', f'{meta}_meta.txt')
+            meta_path = os.path.join(self.video.local_processed_folder, f'{self.video.gcp_file_name}_metadata',
+                                     f'{meta}_meta.txt')
 
             cmd = f'{settings.gpmf_parser_location} {self.video.local_raw_download_path} -f{meta} -a | tee {meta_path}'
             try:
@@ -527,3 +616,14 @@ def miscellaneous_features():
     # util.move_matching_files(source_bucket=storage_client_instance.client.bucket(bucket_name='babyview_main_storage'),
     #                          target_bucket=storage_client_instance.client.bucket(bucket_name='babyview_videos_to_check_storage'),
     #                          csv_file="unconverted_files.csv")
+
+
+def _parse_time_str(time_str):
+    """Parses time string in HH:MM:SS or MM:SS format to seconds."""
+    parts = [int(p) for p in time_str.strip().split(":")]
+    if len(parts) == 3:
+        return parts[0] * 3600 + parts[1] * 60 + parts[2]
+    elif len(parts) == 2:
+        return parts[0] * 60 + parts[1]
+    else:
+        raise ValueError(f"Invalid time format: {time_str}")

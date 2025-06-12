@@ -6,10 +6,9 @@ from pathlib import Path
 import settings
 from controllers import GoogleDriveDownloader
 from controllers import FileProcessor
-from airtable_services import AirtableServices
 from gcp_storage_services import GCPStorageServices
-
-airtable = AirtableServices()
+from video import Video
+from airtable_services import airtable_services
 downloader = GoogleDriveDownloader()
 storage = GCPStorageServices()
 
@@ -26,6 +25,7 @@ class VideoStatus:
 
     NOT_FOUND = "Not found"
 
+
 class Step:
     DELETE = "delete"
     DOWNLOAD = "download"
@@ -34,6 +34,7 @@ class Step:
     ZIP = "zip"
     COMPRESS = "compress"
     ROTATE = 'rotate'
+    BLACKOUT = 'blackout'
     UPLOAD_ZIP = "upload_zip"
     UPLOAD_COMPRESS = "upload_compress"
     UPLOAD_RAW = "upload_raw"
@@ -151,7 +152,7 @@ def zip_metadata(video, processor, logs):
     return True
 
 
-def compress_rotate_and_upload(video, processor, logs):
+def compress_rotate_blackout_and_upload(video: Video, processor, logs):
     video.compress_video_path, compress_err = processor.compress_vid()
     if compress_err:
         return fail_step(logs, video, Step.COMPRESS, compress_err)
@@ -159,6 +160,10 @@ def compress_rotate_and_upload(video, processor, logs):
     video.compress_video_path, rotate_err = processor.rotate_video()
     if rotate_err:
         return fail_step(logs, video, Step.ROTATE, rotate_err)
+    if video.blackout_region:
+        video.compress_video_path, blackout_err = processor.blackout_video()
+        if blackout_err:
+            return fail_step(logs, video, Step.BLACKOUT, blackout_err)
 
     video.gcp_storage_video_location = f"{video.subject_id}/{os.path.basename(video.compress_video_path)}"
     _, compress_upload_msg = storage.upload_file_to_gcs(
@@ -173,7 +178,7 @@ def compress_rotate_and_upload(video, processor, logs):
     return True
 
 
-def process_single_video(video, logs):
+def process_single_video(video: Video, logs):
     processor = FileProcessor(video)
     error_occurred = False
 
@@ -195,7 +200,7 @@ def process_single_video(video, logs):
             return
 
         # Step 3:
-        # Extract meta data and detect hilights from video, upload raw to bucket
+        # Extract meta data from video, upload raw to bucket
         if not process_metadata(video=video, processor=processor, logs=logs):
             return
         if video.status in [VideoStatus.META_FAIL]:
@@ -214,7 +219,7 @@ def process_single_video(video, logs):
                 error_occurred = True
                 return
 
-        if not compress_rotate_and_upload(video, processor, logs):
+        if not compress_rotate_blackout_and_upload(video, processor, logs):
             error_occurred = True
             return
 
@@ -227,7 +232,7 @@ def process_single_video(video, logs):
     finally:
         if not error_occurred:
             video.pipeline_run_date = datetime.now().strftime("%Y-%m-%d")
-            airtable.update_video_table_single_video(video.unique_video_id, {
+            airtable_services.update_video_table_single_video(video.unique_video_id, {
                 # 'hilight_locations': str(video.highlight) if video.highlight else None,
                 'pipeline_run_date': video.pipeline_run_date,
                 'status': video.status,
@@ -281,7 +286,7 @@ def main():
         filter_key = args.filter_key
         filter_value = args.filter_value
 
-    video_tracking_data = airtable.get_video_info_from_video_table(filter_key=filter_key, filter_value=filter_value)
+    video_tracking_data = airtable_services.get_video_info_from_video_table(filter_key=filter_key, filter_value=filter_value)
     print(video_tracking_data, len(video_tracking_data))
     process_videos(video_tracking_data=video_tracking_data)
 
@@ -307,6 +312,7 @@ def main():
     # processor = FileProcessor(v)
     # r = process_metadata(video=v, processor=processor, logs=logs)
     # print(r, logs)
+
 
 if __name__ == '__main__':
     main()
