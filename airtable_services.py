@@ -22,7 +22,8 @@ class AirtableServices:
         self.participant_dict = self.set_participant_dict_from_participant_table()
 
     def get_video_info_from_video_table(self, filter_key=None, filter_value=None):
-        status_filter = "status != 'Successfully processed'"
+        from main import VideoStatus
+        status_filter = f"status != '{VideoStatus.PROCESSED}'"
         if filter_key and filter_value:
             if isinstance(filter_value, str):
                 main_filter = f"{filter_key} = '{filter_value}'"

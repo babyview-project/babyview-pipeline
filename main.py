@@ -14,16 +14,16 @@ storage = GCPStorageServices()
 
 
 class VideoStatus:
-    TO_BE_DELETED = "To be deleted"
-    TO_BE_REPROCESS = "To be reprocessed"
+    TO_BE_DELETED = "to_be_deleted"
+    TO_BE_REPROCESS = "to_be_reprocessed"
 
-    REMOVED = "Successfully deleted from GCP"
-    PROCESSED = "Successfully processed"
+    REMOVED = "successfully_deleted_from_GCP"
+    PROCESSED = "successfully_processed"
 
-    META_FAIL = "Error in meta extraction"
-    REMOVE_FAIL = "Error in GCP deletion"
+    META_FAIL = "error_in_meta_extraction"
+    REMOVE_FAIL = "error_in_GCP_deletion"
 
-    NOT_FOUND = "Not found"
+    NOT_FOUND = "not_found"
 
 
 class Step:
@@ -73,7 +73,7 @@ def fail_step(logs, video, step, msg):
 
 def handle_deletion(video, logs):
     delete_ok = True
-    for gcp_bucket in [f"{video.gcp_bucket_name}_raw", f"{video.gcp_bucket_name}_storage", "babyview_hilight"]:
+    for gcp_bucket in [f"{video.gcp_bucket_name}_raw", f"{video.gcp_bucket_name}_storage"]:
         success, msg = storage.delete_blobs_with_substring(gcp_bucket, video.unique_video_id)
         if msg:
             print(f'Deletion msg: {msg}')
