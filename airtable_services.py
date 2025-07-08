@@ -25,6 +25,8 @@ class AirtableServices:
         from main import VideoStatus
         status_filter = f"status != '{VideoStatus.PROCESSED}'"
         if filter_key and filter_value:
+            # if filter_key == "subject_id":
+            #     main_filter = "OR(" + ",".join([f'{{subject_id}} = "{sid}"' for sid in filter_value]) + ")"
             if isinstance(filter_value, str):
                 main_filter = f"{filter_key} = '{filter_value}'"
             elif isinstance(filter_value, list):
@@ -36,6 +38,7 @@ class AirtableServices:
             else:
                 formula = status_filter
         elif filter_key:
+            # UseCase "pipeline_run_date" to be null, for all non-processed vids.
             formula = f"AND(NOT({filter_key}), {status_filter})"
         else:
             formula = status_filter

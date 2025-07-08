@@ -274,7 +274,7 @@ def main():
     parser.add_argument('--filter_key', type=str, default='pipeline_run_date',  #None
                         choices=['pipeline_run_date', 'status', 'dataset', 'subject_id', 'unique_video_id'],
                         help="Choose from ['pipeline_run_date', 'status', 'dataset', 'subject_id', 'unique_video_id']")
-    parser.add_argument('--filter_value', type=str, default=None,
+    parser.add_argument('--filter_value', type=str, nargs='+', default=None,
                         help="Choose the value for the filter_key")
 
     args = parser.parse_args()
