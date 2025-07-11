@@ -117,7 +117,7 @@ class GCPStorageServices:
             blob.upload_from_string(json_data, content_type='application/json')
             msg = f"{filename} has been saved to {bucket_name}."
         except Exception as e:
-            msg = f"{filename} failed to be saved to {bucket_name}."
+            msg = f"{filename} failed to be saved to {bucket_name}. Error: {e}"
 
         print(msg)
         return msg
