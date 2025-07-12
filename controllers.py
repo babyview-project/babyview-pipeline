@@ -182,7 +182,7 @@ class FileProcessor:
                 return self.video.compress_video_path, error_msg
 
         except Exception as e:
-            error_msg = f"Error processing video: {self.video.compress_video_path}, {e}"
+            error_msg = f"Error rotating video: {self.video.compress_video_path}, {e}"
             print(error_msg)
             return self.video.compress_video_path, error_msg
 
@@ -544,7 +544,7 @@ class FileProcessor:
             raw_folder = Path(self.video.local_raw_download_path).parents[
                 2] if self.video.local_raw_download_path else None
             processed_folder = Path(self.video.local_processed_folder).parents[
-                1] if self.video.local_processed_folder else None
+                0] if self.video.local_processed_folder else None
         except Exception as e:
             print(f"Error resolving folder paths: {e}")
             return
