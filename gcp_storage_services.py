@@ -10,6 +10,14 @@ import pandas as pd
 from datetime import datetime
 
 
+class SafeJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        try:
+            return super().default(obj)
+        except TypeError:
+            return str(obj)  # fallback to string
+
+
 class ProgressBytesIO(BytesIO):
     def __init__(self, bytes_io, progress_bar):
         self._bytes_io = bytes_io
@@ -104,16 +112,12 @@ class GCPStorageServices:
 
     def upload_dict_to_gcs(self, data: dict, bucket_name, filename):
         try:
-            # Reference the specified bucket
             bucket = self.client.bucket(bucket_name)
 
-            # Convert the dictionary to JSON
-            json_data = json.dumps(data)
+            # Safer serialization
+            json_data = json.dumps(data, cls=SafeJSONEncoder)
 
-            # Create a blob object in the specified bucket
             blob = bucket.blob(filename)
-
-            # Upload the JSON data
             blob.upload_from_string(json_data, content_type='application/json')
             msg = f"{filename} has been saved to {bucket_name}."
         except Exception as e:
