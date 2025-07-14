@@ -241,8 +241,8 @@ def process_single_video(video: Video, logs):
                 'gcp_storage_video_location': f'{video.gcp_bucket_name}_storage/{video.gcp_storage_video_location}' if video.gcp_storage_video_location else None,
                 'gcp_storage_zip_location': f'{video.gcp_bucket_name}_storage/{video.gcp_storage_zip_location}' if video.gcp_storage_zip_location else None,
             })
-        if video.google_drive_file_id:
-            processor.clear_directory_contents_raw_storage()
+        # if video.google_drive_file_id:
+        #     processor.clear_directory_contents_raw_storage()
 
 
 def process_videos(video_tracking_data):
