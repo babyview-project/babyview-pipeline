@@ -45,7 +45,7 @@ class Video:
         self.subject_id = video_info.get('subject_id', '')
         self.gopro_video_id = str(video_info.get('gopro_video_id', ''))
         self.dataset = str(video_info.get('dataset', ''))
-        self.recording_week = video_info.get('recording_week', None)
+        self.recording_week = str(video_info.get('recording_week', None))
         self.date = video_info.get('date', None)
         self.start_time = video_info.get('start_time', None)
         self.logging_date = video_info.get('logging_date', None)
@@ -87,45 +87,50 @@ class Video:
 
     def set_file_id_file_path(self, google_drive_service):
         """ Takes a list of folder names and the file name then returns the file ID """
-        if 'bing' in self.dataset.lower():
-            folder_id = "1-ATtN-wZ_mVY3Hm8Q0DO9CVizBsAmY6D"
+        try:
+            if 'bing' in self.dataset.lower():
+                folder_id = "1-ATtN-wZ_mVY3Hm8Q0DO9CVizBsAmY6D"
 
-            # google_drive_folder_path = [re.sub(r"\D", "", self.subject_id), self.normalize_date(self.date, "%m/%d/%Y")]
-            google_drive_folder_path = [self.subject_id, self.normalize_date(self.date, "%m/%d/%Y")]
-            gcp_folder_path = [self.subject_id, self.normalize_date(self.date, "%Y-%m-%d")]
-        else:
-            folder_id = "1ZfVyOBqb2L-Sw0b5himyg_ysB6Mwb8bo"
-            drive_week = f"{self.normalize_date(self.recording_week.split('-')[0], "%m/%d/%Y")}-{self.normalize_date(self.recording_week.split('-')[1], "%m/%d/%Y")}"
-            gcp_week = f"{self.normalize_date(self.recording_week.split('-')[0], "%Y.%m.%d")}-{self.normalize_date(self.recording_week.split('-')[1], "%Y.%m.%d")}"
+                # google_drive_folder_path = [re.sub(r"\D", "", self.subject_id), self.normalize_date(self.date, "%m/%d/%Y")]
+                google_drive_folder_path = [self.subject_id, self.normalize_date(self.date, "%m/%d/%Y")]
+                gcp_folder_path = [self.subject_id, self.normalize_date(self.date, "%Y-%m-%d")]
+            else:
+                folder_id = "1ZfVyOBqb2L-Sw0b5himyg_ysB6Mwb8bo"
+                drive_week = f"{self.normalize_date(self.recording_week.split('-')[0], "%m/%d/%Y")}-{self.normalize_date(self.recording_week.split('-')[1], "%m/%d/%Y")}"
+                gcp_week = f"{self.normalize_date(self.recording_week.split('-')[0], "%Y.%m.%d")}-{self.normalize_date(self.recording_week.split('-')[1], "%Y.%m.%d")}"
 
-            # google_drive_folder_path = [re.sub(r"\D", "", self.subject_id), 'By Date', drive_week]
-            google_drive_folder_path = [self.subject_id, 'By Date', drive_week]
-            gcp_folder_path = [self.subject_id, "By_Date", gcp_week]
+                # google_drive_folder_path = [re.sub(r"\D", "", self.subject_id), 'By Date', drive_week]
+                google_drive_folder_path = [self.subject_id, 'By Date', drive_week]
+                gcp_folder_path = [self.subject_id, "By_Date", gcp_week]
 
-        kwargs = dict(
-            driveId=settings.babyview_drive_id,
-            corpora='drive',
-            includeItemsFromAllDrives=True,
-            supportsAllDrives=True,
-            fields="files(id, name)"
-        )
-        for folder_name in google_drive_folder_path:
-            query = f"'{folder_id}' in parents and name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder'"
+            kwargs = dict(
+                driveId=settings.babyview_drive_id,
+                corpora='drive',
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+                fields="files(id, name)"
+            )
+            for folder_name in google_drive_folder_path:
+                query = f"'{folder_id}' in parents and name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder'"
+                results = google_drive_service.files().list(q=query, **kwargs).execute()
+                items = results.get('files', [])
+                if not items:
+                    return f'{self.unique_video_id}_{self.subject_id}_{self.gopro_video_id}_drive_folder_"{folder_name}"_not_found.'
+
+                folder_id = items[0]['id']
+
+            query = f"'{folder_id}' in parents and name = '{self.google_drive_video_name}'"
             results = google_drive_service.files().list(q=query, **kwargs).execute()
             items = results.get('files', [])
             if not items:
-                return f'{self.unique_video_id}_{self.subject_id}_{self.gopro_video_id}_drive_folder_"{folder_name}"_not_found.'
+                return f'{self.unique_video_id}_{self.subject_id}_{self.gopro_video_id}_drive_video_"{self.google_drive_video_name}"_not_found'
 
-            folder_id = items[0]['id']
+            self.google_drive_file_id = items[0]["id"]
+            self.google_drive_file_path = "/".join(google_drive_folder_path + [self.google_drive_video_name])
+            self.gcp_raw_location = f"{'/'.join(gcp_folder_path + [self.gcp_file_name])}{os.path.splitext(self.google_drive_video_name)[1]}"
 
-        query = f"'{folder_id}' in parents and name = '{self.google_drive_video_name}'"
-        results = google_drive_service.files().list(q=query, **kwargs).execute()
-        items = results.get('files', [])
-        if not items:
-            return f'{self.unique_video_id}_{self.subject_id}_{self.gopro_video_id}_drive_video_"{self.google_drive_video_name}"_not_found'
-
-        self.google_drive_file_id = items[0]["id"]
-        self.google_drive_file_path = "/".join(google_drive_folder_path + [self.google_drive_video_name])
-        self.gcp_raw_location = f"{'/'.join(gcp_folder_path + [self.gcp_file_name])}{os.path.splitext(self.google_drive_video_name)[1]}"
-
-        return None
+            return None
+        except Exception as e:
+            msg = f"set_file_id_file_path failed to setup for {self.unique_video_id}. {e}"
+            print(msg)
+            return msg
