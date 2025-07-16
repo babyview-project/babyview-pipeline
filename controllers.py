@@ -76,16 +76,15 @@ class GoogleDriveDownloader:
         errors = []
         # for video_info in video_info_from_tracking:
         for _, video_info in video_info_from_tracking.iterrows():  # Iterate over DataFrame rows
+            video = Video(video_info=video_info.to_dict())  # Convert row to dictionary
             try:
-                video = Video(video_info=video_info.to_dict())  # Convert row to dictionary
                 error_msg = video.set_file_id_file_path(google_drive_service=self.drive_service)
-                if video.google_drive_file_id:
-                    print(f'get_downloading_file_paths ready for {video.unique_video_id}.')
-                    downloading_file_info.append(video)
             except Exception as e:
                 print(f'get_downloading_file_paths failed for {video_info.get('unique_video_id', None)}. {e}')
                 error_msg = e
-
+            if video.google_drive_file_id:
+                print(f'get_downloading_file_paths ready for {video.unique_video_id}.')
+            downloading_file_info.append(video)
             errors.append(error_msg)
 
         return downloading_file_info, errors

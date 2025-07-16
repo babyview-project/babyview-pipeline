@@ -56,20 +56,14 @@ class Video:
         self.status = video_info.get('status', '')
         # self.duration = video_info.get('duration_sec', None)
 
-        self.set_google_drive_video_name()
-        self.set_session_num()
+        self.session_num = self.gopro_video_id.split('_')[-1] if 'luna' in self.gopro_video_id.lower() else (self.gopro_video_id[3] if len(self.gopro_video_id) > 4 else None)
         self.gcp_file_name = f"{self.subject_id}_{self.normalize_date(date=self.date, date_format='%Y-%m-%d')}_{self.session_num}_{self.unique_video_id}"
         self.gcp_bucket_name = settings.google_drive_entry_point_folder_names[1].lower() if 'bing' in self.dataset.lower() else settings.google_drive_entry_point_folder_names[0].lower()
+        self.set_google_drive_video_name()
 
     def to_dict(self):
         """Converts the Video object attributes into a dictionary."""
         return {attr: getattr(self, attr) for attr in vars(self) if not attr.startswith("__")}
-
-    def set_session_num(self):
-        if 'luna' in self.gopro_video_id.lower():
-            self.session_num = self.gopro_video_id.split('_')[-1]
-        else:
-            self.session_num = self.gopro_video_id[3] if len(self.gopro_video_id) > 4 else None
 
     def normalize_date(self, date, date_format):
         try:
@@ -80,13 +74,16 @@ class Video:
             return None
 
     def set_google_drive_video_name(self):
-        if 'luna' in self.gopro_video_id.lower():
-            self.google_drive_video_name = f'{self.gopro_video_id}.avi'
-        else:
-            if self.gopro_video_id.startswith('GX'):
-                self.google_drive_video_name = f'{self.gopro_video_id}.MP4'
+        try:
+            if 'luna' in self.gopro_video_id.lower():
+                self.google_drive_video_name = f'{self.gopro_video_id}.avi'
             else:
-                self.google_drive_video_name = f'{self.gopro_video_id}.LRV'
+                if self.gopro_video_id.startswith('GX'):
+                    self.google_drive_video_name = f'{self.gopro_video_id}.MP4'
+                else:
+                    self.google_drive_video_name = f'{self.gopro_video_id}.LRV'
+        except Exception as e:
+            print(f"google_drive_video_name failed to setup. {e}")
 
     def set_file_id_file_path(self, google_drive_service):
         """ Takes a list of folder names and the file name then returns the file ID """
