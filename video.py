@@ -43,8 +43,8 @@ class Video:
     def __init__(self, video_info: dict):
         self.unique_video_id = video_info.get('unique_video_id', None)
         self.subject_id = video_info.get('subject_id', '')
-        self.gopro_video_id = video_info.get('gopro_video_id', '')
-        self.dataset = video_info.get('dataset', '')
+        self.gopro_video_id = str(video_info.get('gopro_video_id', ''))
+        self.dataset = str(video_info.get('dataset', ''))
         self.recording_week = video_info.get('recording_week', None)
         self.date = video_info.get('date', None)
         self.start_time = video_info.get('start_time', None)
