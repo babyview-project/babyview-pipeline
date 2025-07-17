@@ -192,6 +192,7 @@ def process_single_video(video: Video, logs):
                 return
         # Step 2:
         # Download the video from Google Drive
+        video.status = None
         if not download_video(video, processor, logs):
             if not video.google_drive_file_id:
                 error_occurred = False
