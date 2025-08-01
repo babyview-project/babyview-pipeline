@@ -9,6 +9,7 @@ from controllers import FileProcessor
 from gcp_storage_services import GCPStorageServices
 from video import Video
 from airtable_services import airtable_services
+
 downloader = GoogleDriveDownloader()
 storage = GCPStorageServices()
 
@@ -22,6 +23,9 @@ class VideoStatus:
 
     META_FAIL = "error_in_meta_extraction"
     REMOVE_FAIL = "error_in_GCP_deletion"
+    COMPRESS_FAIL = "error_in_compression"
+    ROTATE_FAIL = "error_in_rotation"
+    BLACKOUT_FAIL = "error_in_blackout"
 
     NOT_FOUND = "not_found"
 
@@ -152,19 +156,26 @@ def zip_metadata(video, processor, logs):
     return True
 
 
-def compress_rotate_blackout_and_upload(video: Video, processor, logs):
+def compress_rotate_blackout(video: Video, processor, logs):
     video.compress_video_path, compress_err = processor.compress_vid()
     if compress_err:
+        video.status = VideoStatus.COMPRESS_FAIL
         return fail_step(logs, video, Step.COMPRESS, compress_err)
 
     video.compress_video_path, rotate_err = processor.rotate_video()
     if rotate_err:
+        video.status = VideoStatus.ROTATE_FAIL
         return fail_step(logs, video, Step.ROTATE, rotate_err)
     if video.blackout_region:
         video.compress_video_path, blackout_err = processor.blackout_video()
         if blackout_err:
+            video.status = VideoStatus.BLACKOUT_FAIL
             return fail_step(logs, video, Step.BLACKOUT, blackout_err)
 
+    return True
+
+
+def compressed_upload(video: Video, logs):
     video.gcp_storage_video_location = f"{video.subject_id}/{os.path.basename(video.compress_video_path)}"
     _, compress_upload_msg = storage.upload_file_to_gcs(
         video.compress_video_path,
@@ -174,7 +185,6 @@ def compress_rotate_blackout_and_upload(video: Video, processor, logs):
         return fail_step(logs, video, Step.UPLOAD_COMPRESS, compress_upload_msg)
 
     logs['storage_upload_success'].append(f'{video.unique_video_id} uploaded to {video.gcp_storage_video_location}')
-    video.status = VideoStatus.PROCESSED
     return True
 
 
@@ -220,7 +230,10 @@ def process_single_video(video: Video, logs):
                 error_occurred = True
                 return
 
-        if not compress_rotate_blackout_and_upload(video, processor, logs):
+        if not compress_rotate_blackout(video, processor, logs):
+            return
+
+        if not compressed_upload(video, logs):
             error_occurred = True
             return
 
@@ -273,7 +286,8 @@ def process_videos(video_tracking_data):
 def main():
     parser = argparse.ArgumentParser(description="Download videos from cloud services")
     parser.add_argument('--filter_key', type=str, default='pipeline_run_date',  #None
-                        choices=['pipeline_run_date', 'status', 'dataset', 'subject_id', 'unique_video_id', 'status_test'],
+                        choices=['pipeline_run_date', 'status', 'dataset', 'subject_id', 'unique_video_id',
+                                 'status_test'],
                         help="Choose from ['pipeline_run_date', 'status', 'dataset', 'subject_id', 'unique_video_id', 'status_test']")
     parser.add_argument('--filter_value', type=str, nargs='+', default=None,
                         help="Choose the value for the filter_key")
@@ -287,7 +301,8 @@ def main():
         filter_key = args.filter_key
         filter_value = args.filter_value
 
-    video_tracking_data = airtable_services.get_video_info_from_video_table(filter_key=filter_key, filter_value=filter_value)
+    video_tracking_data = airtable_services.get_video_info_from_video_table(filter_key=filter_key,
+                                                                            filter_value=filter_value)
     print(video_tracking_data, len(video_tracking_data))
     process_videos(video_tracking_data=video_tracking_data)
 

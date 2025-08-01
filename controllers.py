@@ -207,7 +207,7 @@ class FileProcessor:
                     end_sec = _parse_time_str(end)
                 except Exception as e:
                     logging.warning(f"Failed to parse time for record {rec.get('id')}: {e}")
-                    continue
+                    return self.video.compress_video_path, str(e)
 
                 if 'blackout' in actions:
                     blackout_ranges.append((start_sec, end_sec))
