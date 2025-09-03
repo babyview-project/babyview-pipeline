@@ -88,10 +88,6 @@ def handle_deletion(video, logs):
         video.status = VideoStatus.REMOVE_FAIL
         return fail_step(logs, video, Step.DELETE, "Some files failed deletion")
 
-    if video.status == VideoStatus.TO_BE_DELETED:
-        video.status = VideoStatus.REMOVED
-        return False
-
     return True
 
 
@@ -198,6 +194,11 @@ def process_single_video(video: Video, logs):
         # If status == reprocess, delete orig files and continue processing
         if video.status and video.status in [VideoStatus.TO_BE_DELETED, VideoStatus.TO_BE_REPROCESS]:
             result = handle_deletion(video, logs)
+
+            if video.status == VideoStatus.TO_BE_DELETED:
+                video.status = VideoStatus.REMOVED
+                return
+
             if result is False:
                 return
         # Step 2:
@@ -273,9 +274,11 @@ def process_videos(video_tracking_data):
     downloading_file_info, log_message = downloader.get_downloading_file_paths(
         video_info_from_tracking=video_tracking_data)
     logs['loading_download_info_error'].append(log_message)
-
     for video in downloading_file_info:
-        process_single_video(video, logs)
+        try:
+            process_single_video(video, logs)
+        except Exception as e:
+            logs['general_error'].append({f'{video.unique_video_id}': str(e)})
 
     log_name = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_logs.json"
     storage.upload_dict_to_gcs(dict(logs), "hs-babyview-logs", log_name)
