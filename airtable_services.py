@@ -1,6 +1,8 @@
 import json
 from pyairtable import Api
 import pandas as pd
+from datetime import datetime, timedelta
+import pytz
 
 import settings
 
@@ -24,6 +26,14 @@ class AirtableServices:
     def get_video_info_from_video_table(self, filter_key=None, filter_value=None):
         from main import VideoStatus
         status_filter = f"status != '{VideoStatus.PROCESSED}'"
+        cutoff_date = (datetime.now(pytz.timezone("America/Los_Angeles")) - timedelta(days=7)).strftime("%Y-%m-%d")
+        date_filter = (
+            f"OR("
+            f"IS_BEFORE({{logging_date}}, '{cutoff_date}'),"
+            f"IS_SAME({{logging_date}}, '{cutoff_date}', 'day')"
+            f")"
+        )
+        formula_parts = [status_filter, date_filter]
         if filter_key and filter_value:
             # if filter_key == "subject_id":
             #     main_filter = "OR(" + ",".join([f'{{subject_id}} = "{sid}"' for sid in filter_value]) + ")"
@@ -33,15 +43,15 @@ class AirtableServices:
                 main_filter = "OR(" + ", ".join([f"{filter_key} = '{value}'" for value in filter_value]) + ")"
             else:
                 main_filter = ""
+
             if main_filter:
-                formula = f"AND({main_filter}, {status_filter})"
-            else:
-                formula = status_filter
+                formula_parts.append(main_filter)
+
         elif filter_key:
             # UseCase "pipeline_run_date" to be null, for all non-processed vids.
-            formula = f"AND(NOT({filter_key}), {status_filter})"
-        else:
-            formula = status_filter
+            formula_parts.append(f"NOT({{{filter_key}}})")
+
+        formula = "AND(" + ", ".join(formula_parts) + ")"
 
         print(f"Using airtable formula {formula}")
         records = self.video_table.all(formula=formula)
