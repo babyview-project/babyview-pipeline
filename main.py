@@ -288,7 +288,7 @@ def process_videos(video_tracking_data):
 
 def main():
     parser = argparse.ArgumentParser(description="Download videos from cloud services")
-    parser.add_argument('--filter_key', type=str, default='pipeline_run_date',  #None
+    parser.add_argument('--filter_key', type=str, default=None,  #None
                         choices=['pipeline_run_date', 'status', 'dataset', 'subject_id', 'unique_video_id',
                                  'status_test'],
                         help="Choose from ['pipeline_run_date', 'status', 'dataset', 'subject_id', 'unique_video_id', 'status_test']")
