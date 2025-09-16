@@ -25,7 +25,7 @@ class AirtableServices:
 
     def get_video_info_from_video_table(self, filter_key=None, filter_value=None):
         from main import VideoStatus
-        status_filter = f"status != '{VideoStatus.PROCESSED}'"
+        status_filter = f"AND(status != '{VideoStatus.PROCESSED}', status != '{VideoStatus.REMOVED}')"
         cutoff_date = (datetime.now(pytz.timezone("America/Los_Angeles")) - timedelta(days=7)).strftime("%Y-%m-%d")
         date_filter = (
             f"OR("
