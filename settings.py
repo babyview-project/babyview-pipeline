@@ -25,3 +25,4 @@ forced_filter_value = [
     # 'recGfqdmALp9jP1yE',  # bv_main reg
     'reccEvuBCfsoTiJ12',
 ]
+trash_old_drive_files = []

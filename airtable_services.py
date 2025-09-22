@@ -3,7 +3,8 @@ from pyairtable import Api
 import pandas as pd
 from datetime import datetime, timedelta
 import pytz
-
+from typing import List, Dict, Any
+from main import VideoStatus
 import settings
 
 with open(settings.airtable_access_token_path, "r") as file:
@@ -13,6 +14,7 @@ app_id = 'appQ7P6moc6knzYzN'
 video_table_id = 'tblkRXMPT0hTIYZcu'
 participant_table_id = 'tbl5YIcTCibyia5gJ'
 blackout_table_id = 'tblkwKGuCzkrw6EN8'
+
 
 class AirtableServices:
     airtable = None
@@ -24,7 +26,6 @@ class AirtableServices:
         self.participant_dict = self.set_participant_dict_from_participant_table()
 
     def get_video_info_from_video_table(self, filter_key=None, filter_value=None):
-        from main import VideoStatus
         status_filter = f"AND(status != '{VideoStatus.PROCESSED}', status != '{VideoStatus.REMOVED}')"
         cutoff_date = (datetime.now(pytz.timezone("America/Los_Angeles")) - timedelta(days=7)).strftime("%Y-%m-%d")
         date_filter = (
@@ -66,6 +67,48 @@ class AirtableServices:
         df = pd.DataFrame([record["fields"] for record in records])
 
         return df
+
+    def get_videos_for_drive_soft_delete(self, days_old: int = 30, page_size: int = 100) -> List[Dict[str, Any]]:
+        """
+        Return Airtable 'Video' records that are ready for Google Drive soft deletion (move to trash):
+          - status == 'successfully_processed'
+          - pipeline_run_date <= (today - days_old)
+          - google_drive_deletion_date is blank
+        """
+        tz = pytz.timezone("America/Los_Angeles")
+        cutoff_date = (datetime.now(tz) - timedelta(days=days_old)).strftime("%Y-%m-%d")
+
+        # Airtable formula
+        # NOTE: adjust field names if your base uses different exact names or capitalization
+        formula = (
+            "AND("
+            f"status = {VideoStatus.PROCESSED},"
+            f"IS_BEFORE({{pipeline_run_date}}, '{cutoff_date}'),"
+            f"NOT(google_drive_deletion_date)"
+            ")"
+        )
+        print(f"Using airtable formula {formula}")
+        # Paginate to be safe
+        offset = None
+        records: List[Dict[str, Any]] = []
+        while True:
+            page = self.video_table.all(formula=formula, page_size=page_size, offset=offset)
+            records.extend(page)
+            # pyairtable returns 'offset' as a key on the raw response; if using wrapper, adapt accordingly.
+            # If your version doesn't return an offset in '.all()', you can just break here.
+            try:
+                offset = page.offset  # may not exist based on pyairtable version
+            except Exception:
+                break
+            if not offset:
+                break
+        return records
+
+    def mark_video_soft_deleted_today(self, video_unique_id: str):
+        tz = pytz.timezone("America/Los_Angeles")
+        today = datetime.now(tz).strftime("%Y-%m-%d")
+        # You appear to use update by Airtable record id in your other helper; keep the same pattern:
+        self.update_video_table_single_video(video_unique_id, {"google_drive_deletion_date": today})
 
     def get_blackout_data_by_video_id(self, video_id):
         formula = f"{{video_id}} = '{video_id}'"

@@ -2,7 +2,7 @@ import argparse
 import os
 from datetime import datetime
 from pathlib import Path
-
+from typing import List, Dict, Any
 import settings
 from controllers import GoogleDriveDownloader
 from controllers import FileProcessor
@@ -260,7 +260,7 @@ def process_single_video(video: Video, logs):
             processor.clear_directory_contents_raw_storage()
 
 
-def process_videos(video_tracking_data):
+def process_videos(video_tracking_data, mode):
     from collections import defaultdict
     logs = defaultdict(list)
 
@@ -271,14 +271,17 @@ def process_videos(video_tracking_data):
         return dict(logs)
 
     logs['airtable'].append(f"{len(video_tracking_data)}_Loaded")
-    downloading_file_info, log_message = downloader.get_downloading_file_paths(
+    downloading_file_info, log_message = downloader.get_file_paths_from_google_drive(
         video_info_from_tracking=video_tracking_data)
     logs['loading_download_info_error'].append(log_message)
-    for video in downloading_file_info:
-        try:
-            process_single_video(video, logs)
-        except Exception as e:
-            logs['general_error'].append({f'{video.unique_video_id}': str(e)})
+    if mode == 'process':
+        for video in downloading_file_info:
+            try:
+                process_single_video(video, logs)
+            except Exception as e:
+                logs['general_error'].append({f'{video.unique_video_id}': str(e)})
+    elif mode == 'trash':
+        logs['google_drive_file_trashed'] = [downloader.soft_delete_old_drive_files(videos=downloading_file_info)]
 
     log_name = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_logs.json"
     storage.upload_dict_to_gcs(dict(logs), "hs-babyview-logs", log_name)
@@ -288,26 +291,37 @@ def process_videos(video_tracking_data):
 
 def main():
     parser = argparse.ArgumentParser(description="Download videos from cloud services")
-    parser.add_argument('--filter_key', type=str, default=None,  #None
+    parser.add_argument('--process_filter_key', type=str, default=None,  #None
                         choices=['pipeline_run_date', 'status', 'dataset', 'subject_id', 'unique_video_id',
                                  'status_test'],
                         help="Choose from ['pipeline_run_date', 'status', 'dataset', 'subject_id', 'unique_video_id', 'status_test']")
-    parser.add_argument('--filter_value', type=str, nargs='+', default=None,
+    parser.add_argument('--process_filter_value', type=str, nargs='+', default=None,
                         help="Choose the value for the filter_key")
+
+    parser.add_argument(
+        "--trash_old_drive_files",
+        action="store_true",
+        default=None,
+        help="Move eligible Google Drive files to trash (soft delete)."
+    )
 
     args = parser.parse_args()
 
     if settings.forced_filter:
-        filter_key = settings.forced_filter_key
-        filter_value = settings.forced_filter_value
+        process_filter_key = settings.forced_filter_key
+        process_filter_value = settings.forced_filter_value
     else:
-        filter_key = args.filter_key
-        filter_value = args.filter_value
+        process_filter_key = args.process_filter_key
+        process_filter_value = args.process_filter_value
 
-    video_tracking_data = airtable_services.get_video_info_from_video_table(filter_key=filter_key,
-                                                                            filter_value=filter_value)
+    if args.trash_old_drive_files:
+        video_tracking_data = airtable_services.get_videos_for_drive_soft_delete()
+    else:
+        video_tracking_data = airtable_services.get_video_info_from_video_table(filter_key=process_filter_key,
+                                                                            filter_value=process_filter_value)
     print(video_tracking_data, len(video_tracking_data))
-    process_videos(video_tracking_data=video_tracking_data)
+    process_videos(video_tracking_data=video_tracking_data,
+                   mode='trash' if args.trash_old_drive_files else 'process')
 
     # from video import Video
     # v = Video({'date': '2024-01-01', })

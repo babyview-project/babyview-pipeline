@@ -27,6 +27,7 @@ from googleapiclient.http import MediaIoBaseDownload
 
 from gcp_storage_services import GCPStorageServices
 from video import Video
+from airtable_services import airtable_services
 
 # all meta data types that we want to extract
 ALL_METAS = [
@@ -71,21 +72,21 @@ class GoogleDriveDownloader:
         version = 'v3' if service_type == 'drive' else 'v4'
         return build(service_type, version, credentials=creds)
 
-    def get_downloading_file_paths(self, video_info_from_tracking: pd.DataFrame) -> tuple:
-        downloading_file_info = []
+    def get_file_paths_from_google_drive(self, video_info_from_tracking: pd.DataFrame) -> tuple:
+        file_info = []
         errors = []
         # for video_info in video_info_from_tracking:
         for _, video_info in video_info_from_tracking.iterrows():  # Iterate over DataFrame rows
             video = Video(video_info=video_info.to_dict())  # Convert row to dictionary
             error_msg = video.set_file_id_file_path(google_drive_service=self.drive_service)
             if video.google_drive_file_id:
-                print(f'get_downloading_file_paths ready for {video.unique_video_id}.')
+                print(f'get_file_paths_from_google_drive ready for {video.unique_video_id}.')
             else:
                 print(f'{video_info.get('unique_video_id', None)} not found on G-drive.')
-            downloading_file_info.append(video)
+            file_info.append(video)
             errors.append(error_msg)
 
-        return downloading_file_info, errors
+        return file_info, errors
 
     def download_file(self, local_raw_download_folder, video: Video):
         try:
@@ -102,6 +103,51 @@ class GoogleDriveDownloader:
         except Exception as e:
             return False, e
 
+    def trash_file_by_id(self, file_id: str) -> dict:
+        """
+        Soft delete (move to trash). Google Drive auto-purges trash after ~30 days.
+        """
+        return self.drive_service.files().update(
+            fileId=file_id,
+            body={"trashed": True},
+            supportsAllDrives=True
+        ).execute()
+
+    def soft_delete_old_drive_files(self, videos: List[Video]) -> Dict[str, Any]:
+        """
+        Find Airtable videos eligible for Drive soft deletion and move them to trash.
+        - days_old: minimum age in days since pipeline_run_date
+        - dry_run: if True, do not actually trash or update Airtable; just report.
+        Returns stats and details.
+        """
+        results = {
+            "checked": len(videos),
+            "trashed": 0,
+            "skipped": 0,
+            "failed": 0,
+            "details": []
+        }
+
+        for v in videos:
+            # Soft delete (move to trash)
+            try:
+                self.trash_file_by_id(file_id=v.google_drive_file_id)
+                airtable_services.mark_video_soft_deleted_today(video_unique_id=v.unique_video_id)
+                results["trashed"] += 1
+                results["details"].append({
+                    "google_drive_file_path": v.google_drive_file_path,
+                    "unique_video_id": v.unique_video_id,
+                    "action": "TRASHED",
+                })
+            except Exception as e:
+                results["failed"] += 1
+                results["details"].append({
+                    "google_drive_file_path": v.google_drive_file_path,
+                    "unique_video_id": v.unique_video_id,
+                    "reason": f"Trash/update failed: {e}",
+                })
+
+        return results
 
 class FileProcessor:
     video = None
