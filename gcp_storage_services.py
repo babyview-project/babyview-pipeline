@@ -208,3 +208,21 @@ class GCPStorageServices:
                 msg = f"Failed to move file {file_uniq_id} from {source_bucket} to {target_bucket}. Error: {e}."
                 success = False
             return success, msg
+
+    def download_file_from_gcs(self, gcp_bucket: str, blob_path: str, local_path: str):
+        """
+        Download a blob from GCS to a local file.
+
+        Returns:
+            (success: bool, msg: str | None)
+        """
+        try:
+            bucket = self.client.bucket(gcp_bucket)
+            blob = bucket.blob(blob_path)
+
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            blob.download_to_filename(local_path)
+
+            return True, None
+        except Exception as e:
+            return False, str(e)

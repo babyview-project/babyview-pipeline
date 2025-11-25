@@ -9,25 +9,11 @@ from controllers import FileProcessor
 from gcp_storage_services import GCPStorageServices
 from video import Video
 from airtable_services import airtable_services
+from status_types import VideoStatus
+from databrary_client import DatabraryClient
 
 downloader = GoogleDriveDownloader()
 storage = GCPStorageServices()
-
-
-class VideoStatus:
-    TO_BE_DELETED = "to_be_deleted"
-    TO_BE_REPROCESS = "to_be_reprocessed"
-
-    REMOVED = "successfully_deleted_from_GCP"
-    PROCESSED = "successfully_processed"
-
-    META_FAIL = "error_in_meta_extraction"
-    REMOVE_FAIL = "error_in_GCP_deletion"
-    COMPRESS_FAIL = "error_in_compression"
-    ROTATE_FAIL = "error_in_rotation"
-    BLACKOUT_FAIL = "error_in_blackout"
-
-    NOT_FOUND = "not_found"
 
 
 class Step:
@@ -238,6 +224,21 @@ def process_single_video(video: Video, logs):
             error_occurred = True
             return
 
+        dc = DatabraryClient()
+
+        if video.compress_video_path and os.path.exists(video.compress_video_path):
+            status_url, error_log = dc.upload_video(video)
+            if error_log:
+                msg = f"Databrary upload had errors for {video.unique_video_id}: {' | '.join(error_log)}"
+                print(msg)
+                logs.setdefault('databrary_upload_failed', []).append(msg)
+            else:
+                print(f"[Databrary] upload OK for {video.unique_video_id} -> {status_url}")
+        else:
+            # even if we don't call Databrary, you may want a record in Airtable.
+            # If you want that, you could add a method or fake a minimal call.
+            print(f"[Databrary] skipped for {video.unique_video_id}: no local compressed video path.")
+
         video.status = VideoStatus.PROCESSED
 
     except Exception as e:
@@ -318,33 +319,11 @@ def main():
         video_tracking_data = airtable_services.get_videos_for_drive_soft_delete()
     else:
         video_tracking_data = airtable_services.get_video_info_from_video_table(filter_key=process_filter_key,
-                                                                            filter_value=process_filter_value)
+                                                                                filter_value=process_filter_value)
     print(video_tracking_data, len(video_tracking_data))
     process_videos(video_tracking_data=video_tracking_data,
                    mode='trash' if args.trash_old_drive_files else 'process')
 
-    # from video import Video
-    # v = Video({'date': '2024-01-01', })
-    # local_raw_download_path = os.path.join(settings.raw_file_root, 'BabyView_Main', 'S00400001_S00400001_2023-06-12_1_recnH3x6JqlT6LsN3.mp4')
-    # v.compress_video_path = local_raw_download_path # Path(local_raw_download_path).resolve()
-    # file_processor = FileProcessor(video=v)
-    # path, error_msg = file_processor.rotate_video()
-    # print(path, error_msg)
-
-    # from video import Video
-    # v = Video({'date': '2024-01-01', })
-    # from collections import defaultdict
-    # logs = defaultdict(list)
-    #
-    # local_raw_download_path = os.path.join('data', 'HERO_Stabilized_1080.mp4')
-    # v.local_processed_folder = os.path.join('data', 'Bones')
-    # v.gcp_file_name = 'HERO_Stabilized_1080'
-    # v.local_raw_download_path = Path(local_raw_download_path).resolve()
-    # v.gcp_raw_location = 'asdf'
-    # v.gopro_video_id = 'asdf'
-    # processor = FileProcessor(v)
-    # r = process_metadata(video=v, processor=processor, logs=logs)
-    # print(r, logs)
 
 
 if __name__ == '__main__':

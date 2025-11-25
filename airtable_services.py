@@ -4,8 +4,9 @@ import pandas as pd
 from datetime import datetime, timedelta
 import pytz
 from typing import List, Dict, Any
-from main import VideoStatus
+from status_types import VideoStatus
 import settings
+from tqdm import tqdm
 
 with open(settings.airtable_access_token_path, "r") as file:
     airtable_access_token = json.load(file).get("token")
@@ -14,6 +15,9 @@ app_id = 'appQ7P6moc6knzYzN'
 video_table_id = 'tblkRXMPT0hTIYZcu'
 participant_table_id = 'tbl5YIcTCibyia5gJ'
 blackout_table_id = 'tblkwKGuCzkrw6EN8'
+# Airtable table for databrary tokens
+airtable_databrary_token_table_id = "tblguVNudD3vvkzVK"
+release_table_id = 'tblVeWx2MbrXRa6o1'
 
 
 class AirtableServices:
@@ -24,6 +28,8 @@ class AirtableServices:
         self.video_table = self.airtable.table(base_id=app_id, table_name=video_table_id)
         self.blackout_table = self.airtable.table(base_id=app_id, table_name=blackout_table_id)
         self.participant_dict = self.set_participant_dict_from_participant_table()
+        self.databrary_token_table = self.airtable.table(base_id=app_id, table_name=airtable_databrary_token_table_id)
+        self.release_table = self.airtable.table(app_id, release_table_id)
 
     def get_video_info_from_video_table(self, filter_key=None, filter_value=None):
         status_filter = f"AND(status != '{VideoStatus.PROCESSED}', status != '{VideoStatus.REMOVED}')"
@@ -67,6 +73,63 @@ class AirtableServices:
         df = pd.DataFrame([record["fields"] for record in records])
 
         return df
+
+    def get_video_ids_for_a_release_set(self, release_name: str) -> List[str]:
+        """
+        From release table (tblVeWx2MbrXRa6o1):
+          - find row(s) with Name == release_name
+          - read the 'Videos' linked-record field
+          - return list of linked Video record IDs
+        """
+        formula = f"{{Name}} = '{release_name}'"  # Airtable formula: Name='2025.1'
+
+        try:
+            records = self.release_table.all(formula=formula)
+        except Exception as e:
+            print(f"get_video_ids_for_release error for {release_name}: {e}")
+            return []
+
+        if not records:
+            print(f"No release rows found with Name='{release_name}'")
+            return []
+
+        linked_video_ids: List[str] = []
+        for rec in records:
+            fields = rec.get("fields", {})
+            linked = fields.get("Videos", [])
+            # 'Videos' is a linked record field → list of Video record IDs
+            if isinstance(linked, list):
+                linked_video_ids.extend(linked)
+
+        linked_video_ids = list(dict.fromkeys(linked_video_ids))
+        print(f"Found {len(linked_video_ids)} linked videos")
+        if not linked_video_ids:
+            print(f"No linked videos found for release '{release_name}'")
+            return []
+
+        # Filter videos by databrary_upload_date == empty
+        filtered_ids: List[str] = []
+        for vid_id in tqdm(
+            linked_video_ids,
+            desc=f"Checking videos for release {release_name}",
+            unit="video",
+        ):
+            try:
+                vrec = self.video_table.get(vid_id)
+            except Exception as e:
+                print(f"get_video_ids_for_release: failed to fetch video {vid_id}: {e}")
+                continue
+            vfields = vrec.get("fields", {})
+            databrary_date = vfields.get("databrary_upload_date")
+
+            # Airtable "empty" can be: missing key, None, or ""
+            if not databrary_date:
+                filtered_ids.append(vid_id)
+
+        print(
+            f"Release '{release_name}': {len(filtered_ids)} without databrary_upload_date."
+        )
+        return filtered_ids
 
     def get_videos_for_drive_soft_delete(self, days_old: int = 30, page_size: int = 100) -> List[Dict[str, Any]]:
         """
@@ -138,6 +201,7 @@ class AirtableServices:
 
     def update_blackout_table_single_video(self, video_unique_id, data):
         self.blackout_table.update(video_unique_id, data)
+
 
 
 airtable_services = AirtableServices()
