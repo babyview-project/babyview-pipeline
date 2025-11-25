@@ -155,7 +155,7 @@ def backfill_databrary_for_release(release_name: str, limit: int | None = None):
     backfill_databrary_for_video_ids(video_ids)
 
 
-def backfill_databrary_auto(limit: int | None = None):
+def backfill_databrary_auto(status_test=None, limit: int | None = None):
     """
     Auto-select processed videos that:
       - status == successfully_processed
@@ -167,13 +167,23 @@ def backfill_databrary_auto(limit: int | None = None):
     'limit' lets you test on just a few.
     """
     status_value = VideoStatus.PROCESSED  # "successfully_processed"
-    formula = (
-        "AND("
-        f"{{status}} = '{status_value}',"
-        "{gcp_storage_video_location},"
-        "NOT({databrary_upload_date})"
-        ")"
-    )
+    if not status_test:
+        formula = (
+            "AND("
+            f"{{status}} = '{status_value}',"
+            "{gcp_storage_video_location},"
+            "NOT({databrary_upload_date})"
+            ")"
+        )
+    else:
+        formula = (
+            "AND("
+            f"{{status}} = '{status_value}',"
+            f"{{status_test}} = {status_test},"
+            "{gcp_storage_video_location},"
+            "NOT({databrary_upload_date})"
+            ")"
+        )
 
     print(f"[INFO] Airtable formula: {formula}")
     try:
@@ -215,6 +225,11 @@ if __name__ == "__main__":
         help="Auto-select videos (status processed & no databrary status) and backfill",
     )
     parser.add_argument(
+        "--status_test",
+        type=int,
+        help="Manual selected videos (status processed & no databrary status) and backfill",
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -227,6 +242,8 @@ if __name__ == "__main__":
         backfill_databrary_for_video_ids(args.unique_video_id)
     elif args.release:
         backfill_databrary_for_release(args.release, limit=args.limit)
+    elif args.status_test:
+        backfill_databrary_auto(status_test=args.status_test, limit=args.limit)
     elif args.auto:
         backfill_databrary_auto(limit=args.limit)
     else:
