@@ -224,20 +224,18 @@ def process_single_video(video: Video, logs):
             error_occurred = True
             return
 
-        dc = DatabraryClient()
-
-        if video.compress_video_path and os.path.exists(video.compress_video_path):
-            status_url, error_log = dc.upload_video(video)
-            if error_log:
-                msg = f"Databrary upload had errors for {video.unique_video_id}: {' | '.join(error_log)}"
-                print(msg)
-                logs.setdefault('databrary_upload_failed', []).append(msg)
+        if settings.execute_databrary_uploader:
+            dc = DatabraryClient()
+            if video.compress_video_path and os.path.exists(video.compress_video_path):
+                status_url, error_log = dc.upload_video(video)
+                if error_log:
+                    msg = f"Databrary upload had errors for {video.unique_video_id}: {' | '.join(error_log)}"
+                    print(msg)
+                    logs.setdefault('databrary_upload_failed', []).append(msg)
+                else:
+                    print(f"[Databrary] upload OK for {video.unique_video_id} -> {status_url}")
             else:
-                print(f"[Databrary] upload OK for {video.unique_video_id} -> {status_url}")
-        else:
-            # even if we don't call Databrary, you may want a record in Airtable.
-            # If you want that, you could add a method or fake a minimal call.
-            print(f"[Databrary] skipped for {video.unique_video_id}: no local compressed video path.")
+                print(f"[Databrary] skipped for {video.unique_video_id}: no local compressed video path.")
 
         video.status = VideoStatus.PROCESSED
 

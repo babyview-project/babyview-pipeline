@@ -28,6 +28,7 @@ forced_filter_value = [
 ]
 trash_old_drive_files = []
 
+execute_databrary_uploader = True
 databrary_token_url = "https://api.databrary.org/o/token/"
 databrary_initiate_upload_url = "https://api.databrary.org/uploads/initiate/"
 databrary_sessions_url_template = "https://api.databrary.org/volumes/{volume_id}/sessions"

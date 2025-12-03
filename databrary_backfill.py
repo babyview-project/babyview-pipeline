@@ -85,6 +85,11 @@ def backfill_databrary_for_video_ids(video_record_ids: List[str]):
 
         fields = record.get("fields", {})
         gcp_storage_video_location = fields.get("gcp_storage_video_location")
+        databrary_upload_date = fields.get("databrary_upload_date")
+        if databrary_upload_date:
+            print(f"[SKIP] {vid_id}: it has been uploaded on {databrary_upload_date}")
+            continue
+
         if not gcp_storage_video_location:
             msg = "DOWNLOAD: no gcp_storage_video_location in Airtable"
             print(f"[SKIP] {vid_id}: {msg}")

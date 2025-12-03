@@ -81,8 +81,7 @@ class AirtableServices:
           - read the 'Videos' linked-record field
           - return list of linked Video record IDs
         """
-        formula = f"{{Name}} = '{release_name}'"  # Airtable formula: Name='2025.1'
-
+        formula = f"{{Name}} = '{release_name}'"
         try:
             records = self.release_table.all(formula=formula)
         except Exception as e:

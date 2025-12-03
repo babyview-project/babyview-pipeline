@@ -3,7 +3,7 @@ import os
 import json
 from datetime import datetime
 from typing import List, Dict, Any, Tuple
-
+from dateutil import parser
 import requests
 import pytz
 
@@ -192,6 +192,160 @@ class DatabraryClient:
         # if we get here, not found
         return None, f"SESSION_MATCH: no session found for subject_id={subject_id}, volume={volume_id}"
 
+    def _list_files_for_session(
+            self,
+            access_token: str,
+            volume_id: int,
+            session_id: int,
+    ) -> Tuple[List[Dict[str, Any]] | None, str | None]:
+        base_url = f"https://api.databrary.org/volumes/{volume_id}/sessions/{session_id}/files/"
+        headers = {
+            "User-Agent": USER_AGENT,
+            "Accept": "application/json",
+            "Authorization": f"Bearer {access_token}",
+        }
+
+        all_results: List[Dict[str, Any]] = []
+
+        page = 1
+        total_pages: int | None = None
+
+        while True:
+            # First page: use base_url; subsequent pages: add ?page=N
+            if page == 1:
+                url = base_url
+            else:
+                url = f"{base_url}?page={page}"
+
+            try:
+                resp = requests.get(url, headers=headers, timeout=30)
+            except Exception as e:
+                return None, f"FILES: request exception on page {page}: {e}"
+
+            if resp.status_code != 200:
+                return None, f"FILES: HTTP {resp.status_code} on page {page}: {resp.text}"
+
+            try:
+                data = resp.json()
+            except Exception as e:
+                return None, f"FILES: parse json error on page {page}: {e}"
+
+            results = data.get("results", [])
+            all_results.extend(results)
+
+            # Use totalPages from the payload; default to 1 if missing
+            if total_pages is None:
+                total_pages = data.get("totalPages") or 1
+
+            # Stop if we've reached the last page
+            if page >= total_pages:
+                break
+
+            page += 1
+
+        return all_results, None
+
+    def _find_file_id_for_video(
+            self,
+            files: List[Dict[str, Any]],
+            video: Video,
+            filename: str,
+    ) -> Tuple[int | None, str | None]:
+        """
+        Try to find the Databrary file that corresponds to this upload.
+
+        Strategy:
+          1) Prefer exact match on upload.filename == <filename we just uploaded>.
+          2) Fallback: if video.unique_video_id is present, check if it is contained
+             in the Databrary file 'name' field.
+        """
+        if not files:
+            return None, "FILES_MATCH: empty file list"
+
+        # 1) exact match on upload.filename
+        for f in files:
+            try:
+                upload_info = f.get("upload") or {}
+                fname = upload_info.get("filename") or ""
+                if fname == filename:
+                    return f.get("id"), None
+            except Exception as e:
+                # just skip and continue
+                continue
+
+        # 2) fallback: unique_video_id substring in name
+        uid = getattr(video, "unique_video_id", None)
+        if uid:
+            for f in files:
+                name = (f.get("name") or "")
+                if uid in name:
+                    return f.get("id"), None
+
+        return None, f"FILES_MATCH: no file found for filename={filename}"
+
+    def _get_source_date_for_video(self, video: Video) -> Tuple[str | None, str | None]:
+        """
+        Convert video.date into 'YYYY-MM-DD' string for Databrary PATCH payload.
+
+        Assumes video.date is either:
+          - a string like '2024-03-15' or '2024-03-15T10:20:30Z'
+          - a datetime
+        """
+        raw = getattr(video, "date", None)
+        if raw is None:
+            return None, "SOURCE_DATE: video.date is None"
+
+        # datetime -> YYYY-MM-DD
+        if isinstance(raw, datetime):
+            return raw.strftime("%Y-%m-%d"), None
+
+        # string -> try first 10 chars if looks like YYYY-MM-DD
+        if isinstance(raw, str):
+            s = raw.strip()
+            if not s:
+                return None, "SOURCE_DATE: video.date is empty string"
+            try:
+                s = parser.parse(raw).strftime('%Y-%m-%d')
+                return s, None
+            except Exception as e:
+                return None, f"SOURCE_DATE: can't convert {type(raw)} for video.date, {e}"
+
+        return None, f"SOURCE_DATE: unsupported type {type(raw)} for video.date"
+
+    def _patch_file_source_date(
+            self,
+            access_token: str,
+            volume_id: int,
+            session_id: int,
+            file_id: int,
+            source_date: str,
+    ) -> str | None:
+        """
+        PATCH /volumes/{volume_id}/sessions/{session_id}/files/{file_id}/
+        body: {"source_date": "YYYY-MM-DD"}
+        """
+        url = (
+            f"https://api.databrary.org/volumes/{volume_id}/sessions/"
+            f"{session_id}/files/{file_id}/"
+        )
+        headers = {
+            "User-Agent": USER_AGENT,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": f"Bearer {access_token}",
+        }
+        payload = {"source_date": source_date}
+
+        try:
+            resp = requests.patch(url, headers=headers, json=payload, timeout=30)
+        except Exception as e:
+            return f"FILES_PATCH: request exception: {e}"
+
+        if not (200 <= resp.status_code < 300):
+            return f"FILES_PATCH: HTTP {resp.status_code} {resp.text}"
+
+        return None
+
     # ----------------------
     # INITIATE + UPLOAD
     # ----------------------
@@ -207,7 +361,6 @@ class DatabraryClient:
             "filename": filename,
             "destination_type": "session",
             "object_id": object_id,
-            "source_date": "2024-03-15"
         }
         try:
             resp = requests.post(INITIATE_UPLOAD_URL, headers=headers, json=payload, timeout=30)
@@ -310,23 +463,76 @@ class DatabraryClient:
             self._update_airtable_status(video, status_url, error_log)
             return status_url, error_log
 
-        signed = init_resp.get("signedUploadUrl")
+        signed_url = init_resp.get("signedUploadUrl")
         status_url = init_resp.get("statusUrl")
-        if not signed or not status_url:
+        if not signed_url or not status_url:
             msg = f"INITIATE: missing signedUploadUrl or statusUrl in response: {init_resp}"
             print(msg)
             error_log.append(msg)
             self._update_airtable_status(video, status_url, error_log)
             return status_url, error_log
-        print(f"signed_url: {signed}, status_url: {status_url}")
+        print(f"signed_url: {signed_url}, status_url: {status_url}")
 
         # 5. PUT file to signed URL
-        err = self._upload_file_to_signed_url(access_token, signed, video.compress_video_path)
-        if err:
-            print(err)
-            error_log.append(err)
+        upload_err = self._upload_file_to_signed_url(
+            access_token=access_token,
+            signed_url=signed_url,
+            local_path=video.compress_video_path,
+        )
+        if upload_err:
+            error_log.append(upload_err)
+            # we at least have the upload status URL
+            status_url = status_url
+            self._update_airtable_status(video, status_url, error_log)
+            return status_url, error_log
 
-        # 6. final update: regardless of error, write to Airtable
+        # 6) list files for this session to find file_id
+        # files, files_err = self._list_files_for_session(
+        #     access_token=access_token,
+        #     volume_id=volume_id,
+        #     session_id=object_id,
+        # )
+        # file_id = None
+        # if files_err:
+        #     error_log.append(files_err)
+        #     self._update_airtable_status(video, status_url, error_log)
+        #     return status_url, error_log
+        # else:
+        #     input(f"{files}, {len(files)}")
+        #     file_id, match_file_err = self._find_file_id_for_video(files, video, filename)
+        #     if match_file_err:
+        #         error_log.append(match_file_err)
+        #         self._update_airtable_status(video, status_url, error_log)
+        #         return status_url, error_log
+        #
+        # # 7) patch source_date if we found a file_id and video.date is usable
+        # if file_id is not None:
+        #     source_date, sd_err = self._get_source_date_for_video(video)
+        #     if sd_err:
+        #         error_log.append(sd_err)
+        #         self._update_airtable_status(video, status_url, error_log)
+        #         return status_url, error_log
+        #     elif source_date:
+        #         patch_err = self._patch_file_source_date(
+        #             access_token=access_token,
+        #             volume_id=volume_id,
+        #             session_id=object_id,
+        #             file_id=file_id,
+        #             source_date=source_date,
+        #         )
+        #         if patch_err:
+        #             error_log.append(patch_err)
+        #             self._update_airtable_status(video, status_url, error_log)
+        #             return status_url, error_log
+        #
+        # # 8) final status URL: prefer the file URL if we got file_id
+        # if file_id is not None:
+        #     status_url = (
+        #         f"https://api.databrary.org/volumes/{volume_id}/sessions/"
+        #         f"{object_id}/files/{file_id}/"
+        #     )
+
+        # 9. final update: regardless of error, write to Airtable
         self._update_airtable_status(video, status_url, error_log)
         return status_url, error_log
 
