@@ -130,41 +130,59 @@ class AirtableServices:
         )
         return filtered_ids
 
-    def get_videos_for_drive_soft_delete(self, days_old: int = 30, page_size: int = 100) -> List[Dict[str, Any]]:
+    def get_videos_for_drive_soft_delete(
+            self,
+            days_old: int = 30,
+            page_size: int = 100,
+            limit: int | None = None,
+    ) -> pd.DataFrame:
         """
-        Return Airtable 'Video' records that are ready for Google Drive soft deletion (move to trash):
-          - status == 'successfully_processed'
-          - pipeline_run_date <= (today - days_old)
-          - google_drive_deletion_date is blank
+        Return Airtable 'Video' records ready for Google Drive soft deletion (move to trash):
+          - {status} == 'successfully_processed'
+          - {pipeline_run_date} <= (today - days_old)
+          - {google_drive_deletion_date} is blank
+
+        Args:
+            days_old: minimum age in days based on pipeline_run_date
+            page_size: Airtable page size
+            limit: maximum number of Airtable records to return (caps dry_run prep time)
         """
         tz = pytz.timezone("America/Los_Angeles")
         cutoff_date = (datetime.now(tz) - timedelta(days=days_old)).strftime("%Y-%m-%d")
 
-        # Airtable formula
-        # NOTE: adjust field names if your base uses different exact names or capitalization
         formula = (
             "AND("
-            f"status = {VideoStatus.PROCESSED},"
+            f"{{status}} = '{VideoStatus.PROCESSED}',"
             f"IS_BEFORE({{pipeline_run_date}}, '{cutoff_date}'),"
-            f"NOT(google_drive_deletion_date)"
+            f"NOT({{google_drive_deletion_date}})"
             ")"
         )
-        print(f"Using airtable formula {formula}")
-        # Paginate to be safe
-        offset = None
-        records: List[Dict[str, Any]] = []
-        while True:
-            page = self.video_table.all(formula=formula, page_size=page_size, offset=offset)
-            records.extend(page)
-            # pyairtable returns 'offset' as a key on the raw response; if using wrapper, adapt accordingly.
-            # If your version doesn't return an offset in '.all()', you can just break here.
-            try:
-                offset = page.offset  # may not exist based on pyairtable version
-            except Exception:
-                break
-            if not offset:
-                break
-        return records
+        print(f"Using airtable formula: {formula}")
+        if limit:
+            print(f"Limiting Airtable results to first {limit} rows")
+
+        # Prefer server-side cap if supported by your pyairtable version
+        try:
+            records = self.video_table.all(formula=formula, page_size=page_size, max_records=limit)
+        except TypeError:
+            records = self.video_table.all(formula=formula, page_size=page_size)
+            if limit is not None:
+                records = records[:limit]
+
+        if not records:
+            return pd.DataFrame()
+
+        for record in records:
+            # Ensure we have a record-id to update later, even if the field is missing
+            if "unique_video_id" not in record["fields"]:
+                record["fields"]["unique_video_id"] = record.get("id")
+
+            # Keep your existing subject_id mapping behavior
+            subject_id_list = record["fields"].get("subject_id", [])
+            participant_id = subject_id_list[0] if subject_id_list else "Unknown"
+            record["fields"]["subject_id"] = self.participant_dict.get(participant_id, None)
+
+        return pd.DataFrame([r["fields"] for r in records])
 
     def mark_video_soft_deleted_today(self, video_unique_id: str):
         tz = pytz.timezone("America/Los_Angeles")

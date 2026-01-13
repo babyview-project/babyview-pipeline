@@ -259,7 +259,7 @@ def process_single_video(video: Video, logs):
             processor.clear_directory_contents_raw_storage()
 
 
-def process_videos(video_tracking_data, mode):
+def process_videos(video_tracking_data):
     from collections import defaultdict
     logs = defaultdict(list)
 
@@ -273,14 +273,12 @@ def process_videos(video_tracking_data, mode):
     downloading_file_info, log_message = downloader.get_file_paths_from_google_drive(
         video_info_from_tracking=video_tracking_data)
     logs['loading_download_info_error'].append(log_message)
-    if mode == 'process':
-        for video in downloading_file_info:
-            try:
-                process_single_video(video, logs)
-            except Exception as e:
-                logs['general_error'].append({f'{video.unique_video_id}': str(e)})
-    elif mode == 'trash':
-        logs['google_drive_file_trashed'] = [downloader.soft_delete_old_drive_files(videos=downloading_file_info)]
+
+    for video in downloading_file_info:
+        try:
+            process_single_video(video, logs)
+        except Exception as e:
+            logs['general_error'].append({f'{video.unique_video_id}': str(e)})
 
     log_name = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_logs.json"
     storage.upload_dict_to_gcs(dict(logs), "hs-babyview-logs", log_name)
@@ -313,14 +311,12 @@ def main():
         process_filter_key = args.process_filter_key
         process_filter_value = args.process_filter_value
 
-    if args.trash_old_drive_files:
-        video_tracking_data = airtable_services.get_videos_for_drive_soft_delete()
-    else:
-        video_tracking_data = airtable_services.get_video_info_from_video_table(filter_key=process_filter_key,
-                                                                                filter_value=process_filter_value)
+    video_tracking_data = airtable_services.get_video_info_from_video_table(
+        filter_key=process_filter_key,
+        filter_value=process_filter_value
+    )
     print(video_tracking_data, len(video_tracking_data))
-    process_videos(video_tracking_data=video_tracking_data,
-                   mode='trash' if args.trash_old_drive_files else 'process')
+    process_videos(video_tracking_data=video_tracking_data)
 
 
 

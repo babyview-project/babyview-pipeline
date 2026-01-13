@@ -113,41 +113,91 @@ class GoogleDriveDownloader:
             supportsAllDrives=True
         ).execute()
 
-    def soft_delete_old_drive_files(self, videos: List[Video]) -> Dict[str, Any]:
+    from tqdm import tqdm
+
+    def soft_delete_old_drive_files(
+            self,
+            videos: List[Video],
+            dry_run: bool = False,
+            limit: int | None = None,
+            show_progress: bool = True,
+    ) -> Dict[str, Any]:
         """
-        Find Airtable videos eligible for Drive soft deletion and move them to trash.
-        - days_old: minimum age in days since pipeline_run_date
-        - dry_run: if True, do not actually trash or update Airtable; just report.
-        Returns stats and details.
+        Move Google Drive files to trash (soft delete) for provided videos.
+
+        Args:
+            videos: list of Video objects with google_drive_file_id and unique_video_id populated
+            dry_run: if True, do not trash or update Airtable; just report actions
+            limit: optional max number of files to trash
+            show_progress: if True, show tqdm progress bar
+
+        Returns:
+            stats + per-item details
         """
         results = {
             "checked": len(videos),
             "trashed": 0,
             "skipped": 0,
             "failed": 0,
+            "dry_run": dry_run,
             "details": []
         }
 
-        for v in videos:
-            # Soft delete (move to trash)
+        iterator = videos
+        if show_progress:
+            iterator = tqdm(videos, total=len(videos), desc="Trash Drive files", unit="file")
+
+        for v in iterator:
+            # If we hit the cap, stop (only meaningful when not dry_run)
+            if limit is not None and not dry_run and results["trashed"] >= limit:
+                break
+
+            if not getattr(v, "google_drive_file_id", None):
+                results["skipped"] += 1
+                results["details"].append({
+                    "unique_video_id": getattr(v, "unique_video_id", None),
+                    "google_drive_file_path": getattr(v, "google_drive_file_path", None),
+                    "reason": "Missing google_drive_file_id",
+                })
+                continue
+
             try:
+                if dry_run:
+                    results["details"].append({
+                        "unique_video_id": v.unique_video_id,
+                        "google_drive_file_path": getattr(v, "google_drive_file_path", None),
+                        "action": "WOULD_TRASH",
+                    })
+                    continue
+
                 self.trash_file_by_id(file_id=v.google_drive_file_id)
                 airtable_services.mark_video_soft_deleted_today(video_unique_id=v.unique_video_id)
+
                 results["trashed"] += 1
                 results["details"].append({
-                    "google_drive_file_path": v.google_drive_file_path,
                     "unique_video_id": v.unique_video_id,
+                    "google_drive_file_path": getattr(v, "google_drive_file_path", None),
                     "action": "TRASHED",
                 })
+
             except Exception as e:
                 results["failed"] += 1
                 results["details"].append({
-                    "google_drive_file_path": v.google_drive_file_path,
-                    "unique_video_id": v.unique_video_id,
+                    "unique_video_id": getattr(v, "unique_video_id", None),
+                    "google_drive_file_path": getattr(v, "google_drive_file_path", None),
                     "reason": f"Trash/update failed: {e}",
                 })
 
+            # Keep tqdm bar informative
+            if show_progress and hasattr(iterator, "set_postfix"):
+                iterator.set_postfix(
+                    trashed=results["trashed"],
+                    skipped=results["skipped"],
+                    failed=results["failed"],
+                )
+
         return results
+
 
 class FileProcessor:
     video = None

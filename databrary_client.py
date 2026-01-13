@@ -6,6 +6,8 @@ from typing import List, Dict, Any, Tuple
 from dateutil import parser
 import requests
 import pytz
+import re
+from tqdm import tqdm
 
 import settings
 from airtable_services import airtable_services
@@ -403,7 +405,7 @@ class DatabraryClient:
     # ----------------------
     # HIGH-LEVEL ENTRY
     # ----------------------
-    def upload_video(self, video: Video) -> Tuple[str | None, List[str]]:
+    def upload_video(self, video: Video, patch_only: bool = False) -> Tuple[str | None, List[str]]:
         """
         Full Databrary upload workflow for one Video.
 
@@ -451,86 +453,91 @@ class DatabraryClient:
             self._update_airtable_status(video, status_url, error_log)
             return status_url, error_log
 
-        # 4. initiate upload
         filename = os.path.basename(video.compress_video_path)
-        print(
-            f"Sending {video.unique_video_id} to databrary: v_id_{volume_id}, obj_id_{object_id}, filename: {filename}")
-        init_resp, err = self._initiate_upload(access_token, filename, object_id)
-        if err:
-            print(err)
-            error_log.append(err)
-        if init_resp is None:
-            self._update_airtable_status(video, status_url, error_log)
-            return status_url, error_log
+        # 4-5. Upload OR patch-only workflow
+        if not patch_only:
+            print(
+                f"Sending {video.unique_video_id} to databrary: v_id_{volume_id}, obj_id_{object_id}, filename: {filename}")
 
-        signed_url = init_resp.get("signedUploadUrl")
-        status_url = init_resp.get("statusUrl")
-        if not signed_url or not status_url:
-            msg = f"INITIATE: missing signedUploadUrl or statusUrl in response: {init_resp}"
-            print(msg)
-            error_log.append(msg)
-            self._update_airtable_status(video, status_url, error_log)
-            return status_url, error_log
-        print(f"signed_url: {signed_url}, status_url: {status_url}")
+            init_resp, err = self._initiate_upload(access_token, filename, object_id)
+            if err:
+                print(err)
+                error_log.append(err)
+            if init_resp is None:
+                self._update_airtable_status(video, status_url, error_log)
+                return status_url, error_log
 
-        # 5. PUT file to signed URL
-        upload_err = self._upload_file_to_signed_url(
-            access_token=access_token,
-            signed_url=signed_url,
-            local_path=video.compress_video_path,
-        )
-        if upload_err:
-            error_log.append(upload_err)
-            # we at least have the upload status URL
-            status_url = status_url
-            self._update_airtable_status(video, status_url, error_log)
-            return status_url, error_log
+            signed_url = init_resp.get("signedUploadUrl")
+            status_url = init_resp.get("statusUrl")
+            if not signed_url or not status_url:
+                msg = f"INITIATE: missing signedUploadUrl or statusUrl in response: {init_resp}"
+                print(msg)
+                error_log.append(msg)
+                self._update_airtable_status(video, status_url, error_log)
+                return status_url, error_log
+            print(f"signed_url: {signed_url}, status_url: {status_url}")
 
-        # 6) list files for this session to find file_id
-        # files, files_err = self._list_files_for_session(
-        #     access_token=access_token,
-        #     volume_id=volume_id,
-        #     session_id=object_id,
-        # )
-        # file_id = None
-        # if files_err:
-        #     error_log.append(files_err)
-        #     self._update_airtable_status(video, status_url, error_log)
-        #     return status_url, error_log
-        # else:
-        #     input(f"{files}, {len(files)}")
-        #     file_id, match_file_err = self._find_file_id_for_video(files, video, filename)
-        #     if match_file_err:
-        #         error_log.append(match_file_err)
-        #         self._update_airtable_status(video, status_url, error_log)
-        #         return status_url, error_log
-        #
-        # # 7) patch source_date if we found a file_id and video.date is usable
-        # if file_id is not None:
-        #     source_date, sd_err = self._get_source_date_for_video(video)
-        #     if sd_err:
-        #         error_log.append(sd_err)
-        #         self._update_airtable_status(video, status_url, error_log)
-        #         return status_url, error_log
-        #     elif source_date:
-        #         patch_err = self._patch_file_source_date(
-        #             access_token=access_token,
-        #             volume_id=volume_id,
-        #             session_id=object_id,
-        #             file_id=file_id,
-        #             source_date=source_date,
-        #         )
-        #         if patch_err:
-        #             error_log.append(patch_err)
-        #             self._update_airtable_status(video, status_url, error_log)
-        #             return status_url, error_log
-        #
-        # # 8) final status URL: prefer the file URL if we got file_id
-        # if file_id is not None:
-        #     status_url = (
-        #         f"https://api.databrary.org/volumes/{volume_id}/sessions/"
-        #         f"{object_id}/files/{file_id}/"
-        #     )
+            # 5. PUT file to signed URL
+            upload_err = self._upload_file_to_signed_url(
+                access_token=access_token,
+                signed_url=signed_url,
+                local_path=video.compress_video_path,
+            )
+            if upload_err:
+                error_log.append(upload_err)
+                # we at least have the upload status URL
+                status_url = status_url
+                self._update_airtable_status(video, status_url, error_log)
+                return status_url, error_log
+        else:
+            print(f"[PATCH_ONLY] {video.unique_video_id}: skip initiate/upload; locate existing file then PATCH source_date")
+            # 6) list files for this session to find file_id
+            files, files_err = self._list_files_for_session(
+                access_token=access_token,
+                volume_id=volume_id,
+                session_id=object_id,
+            )
+            file_id = None
+            if files_err:
+                error_log.append(files_err)
+                self._update_airtable_status(video, status_url, error_log)
+                return status_url, error_log
+            else:
+                file_id, match_file_err = self._find_file_id_for_video(files, video, filename)
+                if match_file_err:
+                    error_log.append(match_file_err)
+                    self._update_airtable_status(video, status_url, error_log)
+                    return status_url, error_log
+
+            # 7) patch source_date if we found a file_id and video.date is usable
+            if file_id is not None:
+                source_date, sd_err = self._get_source_date_for_video(video)
+                if sd_err:
+                    error_log.append(sd_err)
+                    self._update_airtable_status(video, status_url, error_log)
+                    return status_url, error_log
+                elif source_date:
+                    patch_err = self._patch_file_source_date(
+                        access_token=access_token,
+                        volume_id=volume_id,
+                        session_id=object_id,
+                        file_id=file_id,
+                        source_date=source_date,
+                    )
+                    if patch_err:
+                        error_log.append(patch_err)
+                        self._update_airtable_status(video, status_url, error_log)
+                        return status_url, error_log
+
+                # 8) final status URL: prefer the file URL if we got file_id
+                status_url = (
+                    f"https://api.databrary.org/volumes/{volume_id}/sessions/"
+                    f"{object_id}/files/{file_id}/"
+                )
+            else:
+                error_log.append(f"FILES_MATCH: no file_id found for filename={filename}")
+                self._update_airtable_status(video, status_url, error_log)
+                return status_url, error_log
 
         # 9. final update: regardless of error, write to Airtable
         self._update_airtable_status(video, status_url, error_log)
@@ -565,3 +572,218 @@ class DatabraryClient:
             )
         except Exception as e:
             print(f"AIRTABLE_UPDATE: failed for {video.unique_video_id}: {e}")
+
+    def patch_missing_source_dates(
+            self,
+            volume_id: int,
+            session_id: int | None = None,
+            *,
+            dry_run: bool = False,
+            limit: int | None = None,
+            show_progress: bool = True,
+            show_file_progress: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Patch Databrary files that have missing source_date by scanning Databrary once.
+
+        Workflow:
+          - Get access token once
+          - Fetch sessions once (unless session_id is provided)
+          - For each session: list files once
+          - For each file with source_date missing:
+              - Infer Airtable record id from filename (e.g., 'recXXXXXXXXXXXXXX')
+              - Infer source date from filename (e.g., '..._YYYY-MM-DD_...')
+              - PATCH Databrary file source_date
+              - Update Airtable: databrary_upload_date + databrary_upload_status_url (file URL)
+
+        Args:
+            volume_id: Databrary volume id
+            session_id: If provided, only process this session id
+            dry_run: If True, do not PATCH or update Airtable; just report what would happen
+            limit: Optional cap on number of files to patch (across all sessions)
+
+        Returns:
+            Summary dict with counts and a small list of errors.
+        """
+        tz = pytz.timezone("America/Los_Angeles")
+        now_date_str = datetime.now(tz).strftime("%Y-%m-%d")
+
+        summary: Dict[str, Any] = {
+            "volume_id": volume_id,
+            "session_id": session_id,
+            "dry_run": dry_run,
+            "scanned_sessions": 0,
+            "scanned_files": 0,
+            "candidates_missing_source_date": 0,
+            "patched": 0,
+            "airtable_updated": 0,
+            "skipped_no_record_id": 0,
+            "skipped_no_date_in_name": 0,
+            "errors": [],
+        }
+
+        access_token, err = self.get_valid_access_token()
+        if err:
+            summary["errors"].append(err)
+        if not access_token:
+            summary["errors"].append("TOKEN: access_token is None")
+            return summary
+
+        # sessions list
+        if session_id is not None:
+            sessions = [{"id": session_id}]
+        else:
+            sessions, sess_err = self._fetch_all_sessions(volume_id, access_token)
+            if sess_err:
+                summary["errors"].append(sess_err)
+            if not sessions:
+                summary["errors"].append(f"SESSIONS: empty for volume={volume_id}")
+                return summary
+
+        # helper extractors
+        def _extract_airtable_record_id(name: str) -> str | None:
+            # Airtable record id is typically 17 chars: 'rec' + 14 base62-ish
+            m = re.search(r"(rec[a-zA-Z0-9]{14})", name or "")
+            return m.group(1) if m else None
+
+        def _extract_source_date(name: str) -> str | None:
+            # Expect YYYY-MM-DD somewhere in filename
+            m = re.search(r"(\d{4}-\d{2}-\d{2})", name or "")
+            if not m:
+                return None
+            s = m.group(1)
+            try:
+                datetime.strptime(s, "%Y-%m-%d")
+            except Exception:
+                return None
+            return s
+
+        # progress wrapper
+        use_tqdm = bool(show_progress and tqdm is not None)
+        sess_iter = sessions
+        if use_tqdm:
+            sess_iter = tqdm(sessions, desc="Scan sessions", unit="session")
+
+        patched_so_far = 0
+
+        for s in sess_iter:
+            sid = s.get("id")
+            if sid is None:
+                continue
+            else:
+                print(f"Processing session {sid}")
+
+            summary["scanned_sessions"] += 1
+
+            files, files_err = self._list_files_for_session(
+                access_token=access_token,
+                volume_id=volume_id,
+                session_id=int(sid),
+            )
+            if files_err:
+                summary["errors"].append(f"SESSION {sid}: {files_err}")
+                if use_tqdm and hasattr(sess_iter, "set_postfix"):
+                    sess_iter.set_postfix(
+                        patched=summary["patched"],
+                        candidates=summary["candidates_missing_source_date"],
+                        airtable=summary["airtable_updated"],
+                        errors=len(summary["errors"]),
+                    )
+                continue
+
+            file_iter = files or []
+            use_file_bar = bool(use_tqdm and show_file_progress and tqdm is not None)
+            if use_file_bar:
+                file_iter = tqdm(file_iter, desc=f"Files s{sid}", unit="file", leave=False)
+
+            for f in file_iter:
+                summary["scanned_files"] += 1
+
+                # Databrary responses may use snake_case; be defensive
+                sd_val = f.get("source_date", None)
+                if sd_val is None and "sourceDate" in f:
+                    sd_val = f.get("sourceDate")
+
+                # only patch missing
+                if sd_val not in (None, "", {}):
+                    continue
+
+                summary["candidates_missing_source_date"] += 1
+
+                if limit is not None and patched_so_far >= limit:
+                    # stop early
+                    if use_tqdm and hasattr(sess_iter, "set_postfix"):
+                        sess_iter.set_postfix(
+                            patched=summary["patched"],
+                            candidates=summary["candidates_missing_source_date"],
+                            airtable=summary["airtable_updated"],
+                            errors=len(summary["errors"]),
+                        )
+                    return summary
+
+                file_id = f.get("id")
+                file_name = (f.get("name") or f.get("filename") or "")
+
+                record_id = _extract_airtable_record_id(file_name)
+                if not record_id:
+                    summary["skipped_no_record_id"] += 1
+                    continue
+                else:
+                    print(f"Processing record {record_id}")
+
+                source_date = _extract_source_date(file_name)
+                if not source_date:
+                    summary["skipped_no_date_in_name"] += 1
+                    continue
+
+                file_url = (
+                    f"https://api.databrary.org/volumes/{volume_id}/sessions/"
+                    f"{int(sid)}/files/{file_id}/"
+                )
+
+                if dry_run:
+                    patched_so_far += 1
+                    continue
+
+                patch_err = self._patch_file_source_date(
+                    access_token=access_token,
+                    volume_id=volume_id,
+                    session_id=int(sid),
+                    file_id=int(file_id),
+                    source_date=source_date,
+                )
+                if patch_err:
+                    summary["errors"].append(f"PATCH session={sid} file={file_id}: {patch_err}")
+                    continue
+
+                summary["patched"] += 1
+                patched_so_far += 1
+
+                # Update Airtable (date + url)
+                try:
+                    airtable_services.update_video_table_single_video(
+                        record_id,
+                        {
+                            "databrary_upload_date": now_date_str,
+                            "databrary_upload_status_url": file_url,
+                        },
+                    )
+                    summary["airtable_updated"] += 1
+                except Exception as e:
+                    summary["errors"].append(f"AIRTABLE record={record_id}: {e}")
+                # update session bar with live counts
+                if use_tqdm and hasattr(sess_iter, "set_postfix"):
+                    sess_iter.set_postfix(
+                        patched=summary["patched"],
+                        candidates=summary["candidates_missing_source_date"],
+                        airtable=summary["airtable_updated"],
+                        errors=len(summary["errors"]),
+                    )
+            if use_tqdm and hasattr(sess_iter, "set_postfix"):
+                sess_iter.set_postfix(
+                    patched=summary["patched"],
+                    candidates=summary["candidates_missing_source_date"],
+                    airtable=summary["airtable_updated"],
+                    errors=len(summary["errors"]),
+                )
+        return summary
