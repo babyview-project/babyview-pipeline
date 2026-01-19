@@ -12,7 +12,8 @@ import ray
 
 def create_imu_csv(args, accel_txt_path):
     video_dir = os.path.dirname(accel_txt_path)
-    output_csv_path = accel_txt_path.replace('ACCL_meta.txt', 'imu_combined.csv')
+    video_id = os.path.basename(video_dir)
+    output_csv_path = accel_txt_path.replace('ACCL_meta.txt', f'imu_combined_{video_id}.csv')
     try:
         imu_df = process_imu_for_video_dir(video_dir)
         imu_df.to_csv(output_csv_path, index=False)
@@ -41,6 +42,6 @@ if __name__ == '__main__':
     #     create_imu_csv(args, accel_txt_path)
 
     # NOTE: Uncomment below if you want to run in parallel using Ray
-    # ray.init()
-    # futures = [create_imu_csv_remote.remote(args, accel_txt_path) for accel_txt_path in accl_txt_files]
-    # ray.get(futures)
+    ray.init()
+    futures = [create_imu_csv_remote.remote(args, accel_txt_path) for accel_txt_path in accl_txt_files]
+    ray.get(futures)
