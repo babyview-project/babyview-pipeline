@@ -622,6 +622,24 @@ class DatabraryClient:
             "errors": [],
         }
 
+        def _is_token_403(err_msg: str | None) -> bool:
+            if not err_msg:
+                return False
+            s = err_msg.lower()
+            # your errors look like "FILES: HTTP 403 ..." / "FILES_PATCH: HTTP 403 ..."
+            # Databrary sometimes includes "Invalid authentication token"
+            return ("http 403" in s) and ("token" in s or "authorization" in s or "bearer" in s)
+
+        def _refresh_token_or_log(current_token: str | None) -> str | None:
+            new_token, t_err = self.get_valid_access_token()
+            if t_err:
+                summary["errors"].append(f"TOKEN_REFRESH: {t_err}")
+            if new_token:
+                summary["token_refresh_count"] += 1
+                return new_token
+            summary["errors"].append("TOKEN_REFRESH: failed to obtain a new access_token")
+            return current_token  # fallback
+
         access_token, err = self.get_valid_access_token()
         if err:
             summary["errors"].append(err)
@@ -659,10 +677,8 @@ class DatabraryClient:
             return s
 
         # progress wrapper
-        use_tqdm = bool(show_progress and tqdm is not None)
-        sess_iter = sessions
-        if use_tqdm:
-            sess_iter = tqdm(sessions, desc="Scan sessions", unit="session")
+        use_sess_bar = bool(show_progress)
+        sess_iter = tqdm(sessions, desc="Scan sessions", unit="session") if use_sess_bar else sessions
 
         patched_so_far = 0
 
@@ -680,20 +696,27 @@ class DatabraryClient:
                 volume_id=volume_id,
                 session_id=int(sid),
             )
+            if files_err and _is_token_403(files_err):
+                access_token = _refresh_token_or_log(access_token)
+                files, files_err = self._list_files_for_session(
+                    access_token=access_token,
+                    volume_id=int(volume_id),
+                    session_id=sid,
+                )
             if files_err:
                 summary["errors"].append(f"SESSION {sid}: {files_err}")
-                if use_tqdm and hasattr(sess_iter, "set_postfix"):
+                if use_sess_bar and hasattr(sess_iter, "set_postfix"):
                     sess_iter.set_postfix(
                         patched=summary["patched"],
                         candidates=summary["candidates_missing_source_date"],
                         airtable=summary["airtable_updated"],
+                        token_refresh=summary["token_refresh_count"],
                         errors=len(summary["errors"]),
                     )
                 continue
 
             file_iter = files or []
-            use_file_bar = bool(use_tqdm and show_file_progress and tqdm is not None)
-            if use_file_bar:
+            if show_file_progress:
                 file_iter = tqdm(file_iter, desc=f"Files s{sid}", unit="file", leave=False)
 
             for f in file_iter:
@@ -711,12 +734,12 @@ class DatabraryClient:
                 summary["candidates_missing_source_date"] += 1
 
                 if limit is not None and patched_so_far >= limit:
-                    # stop early
-                    if use_tqdm and hasattr(sess_iter, "set_postfix"):
+                    if use_sess_bar and hasattr(sess_iter, "set_postfix"):
                         sess_iter.set_postfix(
                             patched=summary["patched"],
                             candidates=summary["candidates_missing_source_date"],
                             airtable=summary["airtable_updated"],
+                            token_refresh=summary["token_refresh_count"],
                             errors=len(summary["errors"]),
                         )
                     return summary
@@ -772,14 +795,14 @@ class DatabraryClient:
                 except Exception as e:
                     summary["errors"].append(f"AIRTABLE record={record_id}: {e}")
                 # update session bar with live counts
-                if use_tqdm and hasattr(sess_iter, "set_postfix"):
+                if use_sess_bar and hasattr(sess_iter, "set_postfix"):
                     sess_iter.set_postfix(
                         patched=summary["patched"],
                         candidates=summary["candidates_missing_source_date"],
                         airtable=summary["airtable_updated"],
                         errors=len(summary["errors"]),
                     )
-            if use_tqdm and hasattr(sess_iter, "set_postfix"):
+            if use_sess_bar and hasattr(sess_iter, "set_postfix"):
                 sess_iter.set_postfix(
                     patched=summary["patched"],
                     candidates=summary["candidates_missing_source_date"],

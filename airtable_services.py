@@ -150,11 +150,14 @@ class AirtableServices:
         tz = pytz.timezone("America/Los_Angeles")
         cutoff_date = (datetime.now(tz) - timedelta(days=days_old)).strftime("%Y-%m-%d")
 
+        dataset_filter = "OR({dataset} = 'BV-main', {dataset} = 'Luna')"
+
         formula = (
             "AND("
             f"{{status}} = '{VideoStatus.PROCESSED}',"
             f"IS_BEFORE({{pipeline_run_date}}, '{cutoff_date}'),"
-            f"NOT({{google_drive_deletion_date}})"
+            f"NOT({{google_drive_deletion_date}}),"
+            f"{dataset_filter}"
             ")"
         )
         print(f"Using airtable formula: {formula}")

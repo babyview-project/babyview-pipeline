@@ -51,7 +51,7 @@ def build_videos_for_trash(df, drive_service, limit: int | None = None, show_pro
 
 def main():
     parser = argparse.ArgumentParser(description="Soft delete old Google Drive files (move to trash)")
-    parser.add_argument("--days_old", type=int, default=30, help="Minimum age in days since pipeline_run_date")
+    parser.add_argument("--days_old", type=int, default=180, help="Minimum age in days since pipeline_run_date")
     parser.add_argument("--dry_run", action="store_true", help="Report only; do not trash or update Airtable")
     parser.add_argument("--limit", type=int, default=None, help="Optional max number of files to trash")
     args = parser.parse_args()

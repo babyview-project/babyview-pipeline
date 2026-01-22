@@ -295,13 +295,6 @@ def main():
     parser.add_argument('--process_filter_value', type=str, nargs='+', default=None,
                         help="Choose the value for the filter_key")
 
-    parser.add_argument(
-        "--trash_old_drive_files",
-        action="store_true",
-        default=None,
-        help="Move eligible Google Drive files to trash (soft delete)."
-    )
-
     args = parser.parse_args()
 
     if settings.forced_filter:
