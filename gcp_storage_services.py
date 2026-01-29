@@ -66,7 +66,7 @@ class GCPStorageServices:
 
             # Wrap your BytesIO object with ProgressBytesIO
             file_size = os.path.getsize(source_file_name)
-            pbar = tqdm(total=file_size, unit='B', unit_scale=True, desc='Uploading')
+            pbar = tqdm(total=file_size, unit='B', unit_scale=True, desc=f'Uploading {source_file_name}')
 
             with open(source_file_name, "rb") as fh:
                 progress_io = ProgressBytesIO(fh, pbar)
