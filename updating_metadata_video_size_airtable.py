@@ -235,7 +235,7 @@ def main() -> None:
             results.append(Result(uniq_id=uniq_id, ok=False, err=str(e)))
 
     os.makedirs(args.out_dir, exist_ok=True)
-    out_json = args.out_json or os.path.join(args.out_dir, "run_summary.json")
+    out_json = args.out_json or os.path.join(args.out_dir, "run_summary_100.json")
     with open(out_json, "w", encoding="utf-8") as f:
         json.dump(
             {

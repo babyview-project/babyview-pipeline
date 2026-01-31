@@ -2,6 +2,7 @@ import argparse
 import os
 from datetime import datetime
 from pathlib import Path
+import shutil
 
 import settings
 from controllers import GoogleDriveDownloader
@@ -64,6 +65,14 @@ def make_local_directory(video):
 
 
 def fail_step(logs, video, step, msg):
+    # Store last error on the video so finally() can write it to Airtable if needed
+    try:
+        video.last_error_msg = str(msg)
+        if step in [Step.META, Step.ZIP]:
+            video.meta_error_msg = str(msg)
+    except Exception:
+        pass
+
     result = {
         "video_id": video.unique_video_id,
         "subject_id": video.subject_id,
@@ -113,6 +122,7 @@ def process_metadata(video, processor, logs):
     meta_data_output, meta_err = processor.extract_meta()
     if meta_err:
         video.status = VideoStatus.META_FAIL
+        video.gcp_storage_zip_location = meta_err
         fail_step(logs, video, Step.META, meta_err)
         return True  # still continue even on meta failure
 
@@ -136,16 +146,63 @@ def upload_raw(video, logs):
     return True
 
 
-def zip_metadata(video, processor, logs):
-    video.zipped_file_path, zip_err = processor.zip_files()
-    if zip_err:
-        return fail_step(logs, video, Step.ZIP, zip_err)
+def zip_metadata(video, processor, logs, *, min_zip_kb: float = 3.0, max_attempts: int = 3):
+    last_zip_kb = None
 
+    for attempt in range(1, max_attempts + 1):
+        # On retry: re-run meta extraction to regenerate metadata folder
+        if attempt > 1:
+            meta_dir = os.path.join(video.local_processed_folder, f"{video.gcp_file_name}_metadata")
+            try:
+                shutil.rmtree(meta_dir)
+            except Exception:
+                pass
+            os.makedirs(meta_dir, exist_ok=True)
+
+            _, meta_err = processor.extract_meta()
+            if meta_err:
+                video.status = VideoStatus.META_FAIL
+                fail_step(logs, video, Step.META, meta_err)
+                return True  # stop later, but keep Airtable update
+
+        # (Re)zip metadata
+        video.zipped_file_path, zip_err = processor.zip_files()
+        if zip_err:
+            return fail_step(logs, video, Step.ZIP, zip_err)
+
+        try:
+            last_zip_kb = os.path.getsize(video.zipped_file_path) / 1024.0
+        except Exception:
+            last_zip_kb = 0.0
+
+        if last_zip_kb >= min_zip_kb:
+            break  # good zip
+
+        # Too small => retry if we still can
+        if attempt < max_attempts:
+            try:
+                os.remove(video.zipped_file_path)
+            except Exception:
+                pass
+            continue
+
+        # Still too small after max attempts => fatal META_FAIL, no upload
+        video.status = VideoStatus.META_FAIL
+        fail_step(
+            logs,
+            video,
+            Step.ZIP,
+            f"Metadata zip too small: {last_zip_kb:.3f} KB (< {min_zip_kb} KB) after {max_attempts} attempts."
+        )
+        return True
+
+    # Normal path: upload zip
     video.gcp_storage_zip_location = f"{video.subject_id}/{os.path.basename(video.zipped_file_path)}"
     _, zip_upload_msg = storage.upload_file_to_gcs(
         video.zipped_file_path,
         video.gcp_storage_zip_location,
-        f"{video.gcp_bucket_name}_storage")
+        f"{video.gcp_bucket_name}_storage"
+    )
     if zip_upload_msg:
         return fail_step(logs, video, Step.UPLOAD_ZIP, zip_upload_msg)
 
@@ -230,6 +287,8 @@ def process_single_video(video: Video, logs):
             if not zip_metadata(video, processor, logs):
                 error_occurred = True
                 return
+            if video.status in [VideoStatus.META_FAIL]:
+                return
 
         if not compress_rotate_blackout(video, processor, logs):
             return
@@ -246,6 +305,15 @@ def process_single_video(video: Video, logs):
 
     finally:
         if not error_occurred:
+            zip_field_value = None
+            if video.status == VideoStatus.META_FAIL:
+                zip_field_value = getattr(video, "meta_error_msg", None) or getattr(video, "last_error_msg", None)
+            else:
+                zip_field_value = (
+                    f'{video.gcp_bucket_name}_storage/{video.gcp_storage_zip_location}'
+                    if video.gcp_storage_zip_location else None
+                )
+
             video.pipeline_run_date = datetime.now().strftime("%Y-%m-%d")
             airtable_services.update_video_table_single_video(video.unique_video_id, {
                 # 'hilight_locations': str(video.highlight) if video.highlight else None,
@@ -254,7 +322,7 @@ def process_single_video(video: Video, logs):
                 'duration_sec': video.duration if video.duration else None,
                 'gcp_raw_location': f'{video.gcp_bucket_name}_raw/{video.gcp_raw_location}' if video.local_raw_download_path else None,
                 'gcp_storage_video_location': f'{video.gcp_bucket_name}_storage/{video.gcp_storage_video_location}' if video.gcp_storage_video_location else None,
-                'gcp_storage_zip_location': f'{video.gcp_bucket_name}_storage/{video.gcp_storage_zip_location}' if video.gcp_storage_zip_location else None,
+                'gcp_storage_zip_location': zip_field_value,
             })
         if video.google_drive_file_id:
             processor.clear_directory_contents_raw_storage()

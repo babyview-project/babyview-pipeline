@@ -269,41 +269,94 @@ class FileProcessor:
             return self.video.compress_video_path, str(e)
 
     def extract_meta(self):
-        """Extract specified telemetry tags from a GoPro video and write to separate files."""
+        """Extract specified telemetry tags from a GoPro video and write to separate files.
+
+        Retry up to 3 times if GPMF corruption is detected.
+        If corruption still present after retries -> treat as fatal (return error_msg).
+        """
         error_msg = None
         output_text_list = []
 
-        for meta in ALL_METAS:
-            meta_path = os.path.join(self.video.local_processed_folder, f'{self.video.gcp_file_name}_metadata',
-                                     f'{meta}_meta.txt')
+        corruption_marker = "corruption"
+        max_corruption_retries = 3
 
-            cmd = f'{settings.gpmf_parser_location} {self.video.local_raw_download_path} -f{meta} -a | tee {meta_path}'
-            try:
-                result = subprocess.run(cmd, shell=True, check=True, capture_output=True, timeout=120)
+        meta_dir = os.path.join(
+            self.video.local_processed_folder,
+            f"{self.video.gcp_file_name}_metadata"
+        )
+        os.makedirs(meta_dir, exist_ok=True)
+
+        for attempt in range(1, max_corruption_retries + 1):
+            corruption_found = False
+            error_msg = None
+            output_text_list = []
+
+            # On retry, clean the metadata folder to avoid stale/empty files
+            if attempt > 1:
                 try:
-                    output_text = result.stdout.decode('utf-8')
-                    output_text_list.append(output_text)
-                except UnicodeDecodeError:
-                    output_text = result.stdout.decode('utf-8', 'replace')  # Replace or ignore invalid characters
-                if 'error' in output_text.lower():
-                    error_msg = f'Error executing command: {cmd}\nError message: {output_text}'
+                    shutil.rmtree(meta_dir)
+                except Exception:
+                    pass
+                os.makedirs(meta_dir, exist_ok=True)
+
+            for meta in ALL_METAS:
+                meta_path = os.path.join(meta_dir, f"{meta}_meta.txt")
+
+                cmd = f'{settings.gpmf_parser_location} {self.video.local_raw_download_path} -f{meta} -a | tee {meta_path}'
+                try:
+                    result = subprocess.run(cmd, shell=True, check=True, capture_output=True, timeout=120)
+
+                    # Check BOTH stdout and stderr for warnings/errors
+                    try:
+                        stdout = result.stdout.decode("utf-8")
+                    except UnicodeDecodeError:
+                        stdout = result.stdout.decode("utf-8", "replace")
+
+                    try:
+                        stderr = result.stderr.decode("utf-8")
+                    except UnicodeDecodeError:
+                        stderr = result.stderr.decode("utf-8", "replace")
+
+                    combined = (stdout or "") + "\n" + (stderr or "")
+                    output_text_list.append(stdout)
+
+                    if corruption_marker in combined.lower():
+                        corruption_found = True
+
+                    # keep fatal error behavior
+                    if "error" in combined.lower():
+                        error_msg = f"Error executing command: {cmd}\nError message: {combined}"
+                        output_text_list = []
+                        break
+
+                except subprocess.CalledProcessError as e:
+                    error_msg = f"Error executing command: {cmd}\nError message: {getattr(e, 'stderr', e)}"
                     output_text_list = []
                     break
-            # something is wrong with the video file
-            except subprocess.CalledProcessError as e:
-                error_msg = f'Error executing command: {cmd}\nError message: {e.stderr}'
-                # signal failure if any of the meta data extraction fails
-                output_text_list = []
-                break
-            except subprocess.TimeoutExpired:
-                error_msg = f"Command timed out: {cmd}"
-                output_text_list = []
-                break
-            except Exception as e:
-                error_msg = f'Unexpected error while executing {cmd}: {traceback.format_exc()}, {e}'
-                output_text_list = []
-                break
-        # no need to compress if meta data extraction fails (video corrupted)
+                except subprocess.TimeoutExpired:
+                    error_msg = f"Command timed out: {cmd}"
+                    output_text_list = []
+                    break
+                except Exception as e:
+                    error_msg = f"Unexpected error while executing {cmd}: {traceback.format_exc()}, {e}"
+                    output_text_list = []
+                    break
+
+            # Hard errors: stop immediately
+            if error_msg:
+                return output_text_list, error_msg
+
+            # No corruption: success
+            if not corruption_found:
+                return output_text_list, None
+
+            # Corruption found: retry if we can
+            if attempt < max_corruption_retries:
+                continue
+
+            # Still corrupted after max retries -> fatal
+            return [], f"GPMF corruption detected after {max_corruption_retries} attempts (fatal)."
+
         return output_text_list, error_msg
 
     @staticmethod
@@ -506,6 +559,13 @@ class FileProcessor:
             # zipfile_base = os.path.join(self.processed_folder, 'meta_data')  # no .zip here
             local_processed_meta_data_folder = os.path.join(self.video.local_processed_folder,
                                                             f'{self.video.gcp_file_name}_metadata')
+
+            existing_zip = f"{local_processed_meta_data_folder}.zip"
+            if os.path.exists(existing_zip):
+                try:
+                    os.remove(existing_zip)
+                except Exception:
+                    pass
 
             # Create the zip file
             zipfile_path = shutil.make_archive(base_name=local_processed_meta_data_folder, format='zip',
