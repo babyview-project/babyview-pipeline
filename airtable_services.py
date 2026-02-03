@@ -218,9 +218,11 @@ class AirtableServices:
 
     def update_video_table_single_video(self, video_unique_id, data):
         self.video_table.update(video_unique_id, data)
+        print(f"Updated {video_unique_id} on video_table.")
 
     def update_blackout_table_single_video(self, video_unique_id, data):
         self.blackout_table.update(video_unique_id, data)
+        print(f"Updated {video_unique_id} on blackout_table.")
 
 
 
