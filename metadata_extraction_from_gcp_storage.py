@@ -151,6 +151,7 @@ def extract_metadata_to_zip_via_fileprocessor(video: Video, out_dir: str) -> Tup
             "status": "error_in_meta_extraction",  # same as VideoStatus.META_FAIL
             # optionally store details if you have a notes/error field:
             "gcp_storage_zip_location": error_msg,
+            "imu_issue_fix_date": "2000-01-01"
         }
         airtable.update_video_table_single_video(uniq_id, payload)
         raise RuntimeError(error_msg)
@@ -235,11 +236,13 @@ def main() -> None:
     ap.add_argument("--max_records", type=int, default=0, help="0 means no limit; otherwise cap processing.")
     ap.add_argument("--dry_run", action="store_true", help="No download/extract/upload/update; print actions only.")
     ap.add_argument("--no_keep_video", action="store_true", help="Delete downloaded raw videos after zipping.")
+    ap.add_argument("--uniq_id", default=None, help="Airtable record id (e.g. recxxxxxxxxxxxxxxxx). If provided, only process this one video.")
 
     ap.add_argument("--min_zip_kb", type=float, default=3.0, help="If local metadata zip is smaller than this KB, retry extraction.")
     ap.add_argument("--max_small_zip_retries", type=int, default=1, help="Max retries when zip size is below --min_zip_kb.")
 
     ap.add_argument("--raw_location_field_name", default="gcp_raw_location")
+    ap.add_argument("--compress_vid_location_field_name", default="gcp_storage_video_location")
     ap.add_argument("--zip_location_field_name", default="gcp_storage_zip_location")
     ap.add_argument("--imu_issue_field_name", default="imu_issue")
     ap.add_argument("--metadata_size_field_name", default="metadata_size_kb")
@@ -250,13 +253,24 @@ def main() -> None:
 
     storage = GCPStorageServices()
 
-    formula = build_formula_imu_true_and_unfixed(args.imu_issue_field_name, args.imu_issue_fix_date_field_name)
-    print(f"Using Airtable formula:\n  {formula}\n")
+    # If a specific uniq_id is provided, process only that record
+    if args.uniq_id:
+        formula = f"record_id={args.uniq_id}"
+        try:
+            rec = airtable.video_table.get(args.uniq_id)
+        except Exception as e:
+            raise RuntimeError(f"Failed to fetch Airtable record {args.uniq_id!r}: {e}")
+        records = [rec]
+        print(f"Loaded 1 Airtable record: {args.uniq_id}")
 
-    records = airtable.video_table.all(formula=formula)
-    if args.max_records and args.max_records > 0:
-        records = records[: args.max_records]
-    print(f"Loaded {len(records)} Airtable records")
+    else:
+        formula = build_formula_imu_true_and_unfixed(args.imu_issue_field_name, args.imu_issue_fix_date_field_name)
+        print(f"Using Airtable formula:\n  {formula}\n")
+
+        records = airtable.video_table.all(formula=formula)
+        if args.max_records and args.max_records > 0:
+            records = records[: args.max_records]
+        print(f"Loaded {len(records)} Airtable records")
 
     results: List[Result] = []
     updated = 0
@@ -274,10 +288,16 @@ def main() -> None:
             raw_bucket, raw_blob = parsed_raw
 
             zip_loc = fields.get(args.zip_location_field_name)
+            compressed_vid_loc = fields.get(args.compress_vid_location_field_name)
             parsed_zip = parse_gcs_location(zip_loc) if isinstance(zip_loc, str) else None
-            if not parsed_zip:
+            parsed_compressed_vid = parse_gcs_location(compressed_vid_loc) if isinstance(compressed_vid_loc, str) else None
+            if parsed_zip:
+                zip_bucket, zip_blob = parsed_zip
+            elif parsed_compressed_vid:
+                zip_bucket, comp_blob = parsed_compressed_vid
+                zip_blob = comp_blob.split('.')[0] + '_metadata.zip'
+            else:
                 raise RuntimeError(f"Missing/unparsable zip location {args.zip_location_field_name}: {zip_loc}")
-            zip_bucket, zip_blob = parsed_zip
 
             local_video_path = os.path.join(args.out_dir, "raw_videos", raw_bucket, raw_blob)
 

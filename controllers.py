@@ -276,8 +276,6 @@ class FileProcessor:
         """
         error_msg = None
         output_text_list = []
-
-        corruption_marker = "corruption"
         max_corruption_retries = 3
 
         meta_dir = os.path.join(
@@ -320,7 +318,7 @@ class FileProcessor:
                     combined = (stdout or "") + "\n" + (stderr or "")
                     output_text_list.append(stdout)
 
-                    if corruption_marker in combined.lower():
+                    if "corruption" in combined.lower():
                         corruption_found = True
 
                     # keep fatal error behavior
