@@ -405,7 +405,7 @@ class DatabraryClient:
     # ----------------------
     # HIGH-LEVEL ENTRY
     # ----------------------
-    def upload_video(self, video: Video, patch_only: bool = False) -> Tuple[str | None, List[str]]:
+    def upload_video(self, video: Video) -> Tuple[str | None, List[str]]:
         """
         Full Databrary upload workflow for one Video.
 
@@ -454,92 +454,42 @@ class DatabraryClient:
             return status_url, error_log
 
         filename = os.path.basename(video.compress_video_path)
-        # 4-5. Upload OR patch-only workflow
-        if not patch_only:
-            print(
-                f"Sending {video.unique_video_id} to databrary: v_id_{volume_id}, obj_id_{object_id}, filename: {filename}")
+        # 4-5. Upload workflow
+        print(
+            f"Sending {video.unique_video_id} to databrary: v_id_{volume_id}, obj_id_{object_id}, filename: {filename}")
 
-            init_resp, err = self._initiate_upload(access_token, filename, object_id)
-            if err:
-                print(err)
-                error_log.append(err)
-            if init_resp is None:
-                self._update_airtable_status(video, status_url, error_log)
-                return status_url, error_log
+        init_resp, err = self._initiate_upload(access_token, filename, object_id)
+        if err:
+            print(err)
+            error_log.append(err)
+        if init_resp is None:
+            self._update_airtable_status(video, status_url, error_log)
+            return status_url, error_log
 
-            signed_url = init_resp.get("signedUploadUrl")
-            status_url = init_resp.get("statusUrl")
-            if not signed_url or not status_url:
-                msg = f"INITIATE: missing signedUploadUrl or statusUrl in response: {init_resp}"
-                print(msg)
-                error_log.append(msg)
-                self._update_airtable_status(video, status_url, error_log)
-                return status_url, error_log
-            print(f"signed_url: {signed_url}, status_url: {status_url}")
+        signed_url = init_resp.get("signedUploadUrl")
+        status_url = init_resp.get("statusUrl")
+        if not signed_url or not status_url:
+            msg = f"INITIATE: missing signedUploadUrl or statusUrl in response: {init_resp}"
+            print(msg)
+            error_log.append(msg)
+            self._update_airtable_status(video, status_url, error_log)
+            return status_url, error_log
+        print(f"signed_url: {signed_url}, status_url: {status_url}")
 
-            # 5. PUT file to signed URL
-            upload_err = self._upload_file_to_signed_url(
-                access_token=access_token,
-                signed_url=signed_url,
-                local_path=video.compress_video_path,
-            )
-            if upload_err:
-                error_log.append(upload_err)
-                # we at least have the upload status URL
-                status_url = status_url
-                self._update_airtable_status(video, status_url, error_log)
-                return status_url, error_log
-        else:
-            print(f"[PATCH_ONLY] {video.unique_video_id}: skip initiate/upload; locate existing file then PATCH source_date")
-            # 6) list files for this session to find file_id
-            files, files_err = self._list_files_for_session(
-                access_token=access_token,
-                volume_id=volume_id,
-                session_id=object_id,
-            )
-            file_id = None
-            if files_err:
-                error_log.append(files_err)
-                self._update_airtable_status(video, status_url, error_log)
-                return status_url, error_log
-            else:
-                file_id, match_file_err = self._find_file_id_for_video(files, video, filename)
-                if match_file_err:
-                    error_log.append(match_file_err)
-                    self._update_airtable_status(video, status_url, error_log)
-                    return status_url, error_log
+        # 5. PUT file to signed URL
+        upload_err = self._upload_file_to_signed_url(
+            access_token=access_token,
+            signed_url=signed_url,
+            local_path=video.compress_video_path,
+        )
+        if upload_err:
+            error_log.append(upload_err)
+            # we at least have the upload status URL
+            status_url = status_url
+            self._update_airtable_status(video, status_url, error_log)
+            return status_url, error_log
 
-            # 7) patch source_date if we found a file_id and video.date is usable
-            if file_id is not None:
-                source_date, sd_err = self._get_source_date_for_video(video)
-                if sd_err:
-                    error_log.append(sd_err)
-                    self._update_airtable_status(video, status_url, error_log)
-                    return status_url, error_log
-                elif source_date:
-                    patch_err = self._patch_file_source_date(
-                        access_token=access_token,
-                        volume_id=volume_id,
-                        session_id=object_id,
-                        file_id=file_id,
-                        source_date=source_date,
-                    )
-                    if patch_err:
-                        error_log.append(patch_err)
-                        self._update_airtable_status(video, status_url, error_log)
-                        return status_url, error_log
-
-                # 8) final status URL: prefer the file URL if we got file_id
-                status_url = (
-                    f"https://api.databrary.org/volumes/{volume_id}/sessions/"
-                    f"{object_id}/files/{file_id}/"
-                )
-            else:
-                error_log.append(f"FILES_MATCH: no file_id found for filename={filename}")
-                self._update_airtable_status(video, status_url, error_log)
-                return status_url, error_log
-
-        # 9. final update: regardless of error, write to Airtable
+        # 6. final update: regardless of error, write to Airtable
         self._update_airtable_status(video, status_url, error_log)
         return status_url, error_log
 

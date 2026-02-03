@@ -5,6 +5,7 @@ from typing import List
 
 from datetime import datetime
 import pytz
+from tqdm import tqdm
 
 from gcp_storage_services import GCPStorageServices
 from airtable_services import airtable_services
@@ -64,7 +65,11 @@ def _mark_airtable_error(video_record_id: str, error_msg: str):
         print(f"[AIRTABLE_UPDATE_ERROR] {video_record_id}: {e}")
 
 
-def backfill_databrary_for_video_ids(video_record_ids: List[str], patch_only: bool = False):
+def backfill_databrary_for_video_ids(
+    video_record_ids: List[str],
+    dry_run: bool = False,
+    show_progress: bool = True,
+):
     """
     Backfill Databrary uploads for specific Airtable video record IDs.
 
@@ -75,7 +80,11 @@ def backfill_databrary_for_video_ids(video_record_ids: List[str], patch_only: bo
       - call DatabraryClient.upload_video(video)
       - remove local file
     """
-    for vid_id in video_record_ids:
+    iterator = video_record_ids
+    if show_progress:
+        iterator = tqdm(video_record_ids, desc="Databrary backfill", unit="video")
+
+    for vid_id in iterator:
         print(f"=== Backfill Databrary for {vid_id} ===")
         try:
             record = airtable_services.video_table.get(vid_id)
@@ -86,7 +95,7 @@ def backfill_databrary_for_video_ids(video_record_ids: List[str], patch_only: bo
         fields = record.get("fields", {})
         gcp_storage_video_location = fields.get("gcp_storage_video_location")
         databrary_upload_date = fields.get("databrary_upload_date")
-        if not patch_only and databrary_upload_date:
+        if databrary_upload_date:
             print(f"[SKIP] {vid_id}: it has been uploaded on {databrary_upload_date}")
             continue
 
@@ -96,17 +105,16 @@ def backfill_databrary_for_video_ids(video_record_ids: List[str], patch_only: bo
             _mark_airtable_error(vid_id, msg)
             continue
 
-        # 1) Decide path for DatabraryClient
-        #    - default: download compressed mp4 from GCS to temp
-        #    - patch_only: skip download; use gcp_storage_video_location for filename matching
-        if patch_only:
-            local_path = gcp_storage_video_location
-        else:
-            local_path, dl_err = _download_from_gcs_to_temp(gcp_storage_video_location)
-            if dl_err:
-                print(f"[ERROR] {vid_id}: {dl_err}")
-                _mark_airtable_error(vid_id, dl_err)
-                continue
+        if dry_run:
+            print(f"[DRY_RUN] {vid_id}: would download from {gcp_storage_video_location}")
+            continue
+
+        # 1) Download compressed mp4 from GCS to temp
+        local_path, dl_err = _download_from_gcs_to_temp(gcp_storage_video_location)
+        if dl_err:
+            print(f"[ERROR] {vid_id}: {dl_err}")
+            _mark_airtable_error(vid_id, dl_err)
+            continue
 
         # 2) Build Video object from Airtable fields
         try:
@@ -125,37 +133,42 @@ def backfill_databrary_for_video_ids(video_record_ids: List[str], patch_only: bo
             msg = f"VIDEO_BUILD: failed to construct Video object: {e}"
             print(f"[ERROR] {vid_id}: {msg}")
             _mark_airtable_error(vid_id, msg)
-            # clean up temp file (download mode only)
-            if not patch_only:
-                try:
-                    os.remove(local_path)
-                except Exception:
-                    pass
+            # clean up temp file
+            try:
+                os.remove(local_path)
+            except Exception:
+                pass
             continue
         print(f"Video Info being uploaded: {video.to_dict()}")
 
         # 3) Call DatabraryClient (this will ALWAYS write databrary_* fields)
-        status_url, error_log = dc.upload_video(video, patch_only=patch_only)
+        status_url, error_log = dc.upload_video(video)
         if error_log:
             print(f"[Databrary] {vid_id}: errors -> {' | '.join(error_log)}")
         else:
             print(f"[Databrary] {vid_id}: success -> {status_url}")
 
-        # 4) Clean up local file (download mode only)
-        if not patch_only:
-            try:
-                os.remove(local_path)
-            except Exception:
-                pass
+        # 4) Clean up local file
+        try:
+            os.remove(local_path)
+        except Exception:
+            pass
 
 
-def backfill_databrary_for_release(release_name: str, limit: int | None = None, patch_only: bool = False):
+def backfill_databrary_for_release(
+    release_name: str,
+    limit: int | None = None,
+    dry_run: bool = False,
+    show_progress: bool = True,
+):
     """
     Use the Release table (tblVeWx2MbrXRa6o1) to find the row with Name=release_name,
     get its linked 'Videos' field (list of video record IDs), and run Databrary backfill
     on those videos.
     """
-    video_ids = airtable_services.get_video_ids_for_a_release_set(release_name)
+    video_ids = airtable_services.get_video_ids_for_release_missing_databrary_date(
+        release_name
+    )
     if not video_ids:
         print(f"[INFO] No videos found for release '{release_name}'")
         return
@@ -163,11 +176,20 @@ def backfill_databrary_for_release(release_name: str, limit: int | None = None, 
     if limit is not None:
         video_ids = video_ids[:limit]
 
-    input(f"[INFO] Release '{release_name}' has {len(video_ids)} videos: {video_ids}")
-    backfill_databrary_for_video_ids(video_ids, patch_only=patch_only)
+    print(f"[INFO] Release '{release_name}' has {len(video_ids)} videos.")
+    if dry_run:
+        print("[DRY_RUN] Skipping Databrary download/upload and Airtable updates.")
+    else:
+        input(f"[INFO] About to backfill these videos: {video_ids}")
+    backfill_databrary_for_video_ids(video_ids, dry_run=dry_run, show_progress=show_progress)
 
 
-def backfill_databrary_auto(status_test=None, limit: int | None = None, patch_only: bool = False):
+def backfill_databrary_auto(
+    status_test=None,
+    limit: int | None = None,
+    dry_run: bool = False,
+    show_progress: bool = True,
+):
     """
     Auto-select processed videos that:
       - status == successfully_processed
@@ -215,7 +237,7 @@ def backfill_databrary_auto(status_test=None, limit: int | None = None, patch_on
     video_ids = [r["id"] for r in records]
     print(f"[INFO] Found {len(video_ids)} candidate videos: {video_ids}")
 
-    backfill_databrary_for_video_ids(video_ids, patch_only=patch_only)
+    backfill_databrary_for_video_ids(video_ids, dry_run=dry_run, show_progress=show_progress)
 
 
 if __name__ == "__main__":
@@ -249,20 +271,43 @@ if __name__ == "__main__":
         help="Optional limit when using --auto",
     )
     parser.add_argument(
-        "--patch_only",
+        "--dry_run",
         action="store_true",
-        help="Patch-only mode: skip initiate/upload/PUT; locate existing Databrary file and PATCH source_date.",
+        help="Report only; do not download/upload or update Airtable.",
+    )
+    parser.add_argument(
+        "--no_progress",
+        action="store_true",
+        help="Disable progress bar output.",
     )
 
     args = parser.parse_args()
 
     if args.unique_video_id:
-        backfill_databrary_for_video_ids(args.unique_video_id, patch_only=args.patch_only)
+        backfill_databrary_for_video_ids(
+            args.unique_video_id,
+            dry_run=args.dry_run,
+            show_progress=not args.no_progress,
+        )
     elif args.release:
-        backfill_databrary_for_release(args.release, limit=args.limit, patch_only=args.patch_only)
+        backfill_databrary_for_release(
+            args.release,
+            limit=args.limit,
+            dry_run=args.dry_run,
+            show_progress=not args.no_progress,
+        )
     elif args.status_test:
-        backfill_databrary_auto(status_test=args.status_test, limit=args.limit, patch_only=args.patch_only)
+        backfill_databrary_auto(
+            status_test=args.status_test,
+            limit=args.limit,
+            dry_run=args.dry_run,
+            show_progress=not args.no_progress,
+        )
     elif args.auto:
-        backfill_databrary_auto(limit=args.limit, patch_only=args.patch_only)
+        backfill_databrary_auto(
+            limit=args.limit,
+            dry_run=args.dry_run,
+            show_progress=not args.no_progress,
+        )
     else:
         print("Provide either --video-id (one or more) or --auto")

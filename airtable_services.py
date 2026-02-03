@@ -106,29 +106,39 @@ class AirtableServices:
             print(f"No linked videos found for release '{release_name}'")
             return []
 
-        # Filter videos by databrary_upload_date == empty
-        filtered_ids: List[str] = []
-        for vid_id in tqdm(
-            linked_video_ids,
-            desc=f"Checking videos for release {release_name}",
-            unit="video",
-        ):
-            try:
-                vrec = self.video_table.get(vid_id)
-            except Exception as e:
-                print(f"get_video_ids_for_release: failed to fetch video {vid_id}: {e}")
-                continue
-            vfields = vrec.get("fields", {})
-            databrary_date = vfields.get("databrary_upload_date")
+        return linked_video_ids
 
-            # Airtable "empty" can be: missing key, None, or ""
-            if not databrary_date:
-                filtered_ids.append(vid_id)
-
-        print(
-            f"Release '{release_name}': {len(filtered_ids)} without databrary_upload_date."
+    def get_video_ids_for_release_missing_databrary_date(self, release_name: str) -> List[str]:
+        """
+        Return Video record IDs for a release where databrary_upload_date is empty.
+        Uses the Video table fields: release (linked) and databrary_upload_date.
+        """
+        formula = (
+            "AND("
+            f"FIND('{release_name}', ARRAYJOIN({{release}})),"
+            "NOT({databrary_upload_date})"
+            ")"
         )
-        return filtered_ids
+        print(f"Using airtable formula: {formula}")
+        try:
+            records = self.video_table.all(formula=formula)
+        except Exception as e:
+            print(f"get_video_ids_for_release_missing_databrary_date error for {release_name}: {e}")
+            return []
+
+        if not records:
+            print(f"No videos found for release '{release_name}' without databrary_upload_date.")
+            return []
+
+        iterator = records
+        if records:
+            iterator = tqdm(records, total=len(records), desc=f"Release {release_name} missing databrary date", unit="video")
+
+        video_ids = [r["id"] for r in iterator if r.get("id")]
+        print(
+            f"Release '{release_name}': {len(video_ids)} without databrary_upload_date."
+        )
+        return video_ids
 
     def get_videos_for_drive_soft_delete(
             self,
