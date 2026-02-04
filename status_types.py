@@ -8,6 +8,7 @@ class VideoStatus:
     DOWNLOAD_FAIL = "error_in_download"
     META_FAIL = "error_in_meta_extraction"
     ZIP_FAIL = "error_in_zip"
+    IMU_FAIL = "error_in_imu"
     REMOVE_FAIL = "error_in_GCP_deletion"
     COMPRESS_FAIL = "error_in_compression"
     ROTATE_FAIL = "error_in_rotation"

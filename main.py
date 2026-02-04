@@ -7,6 +7,7 @@ import shutil
 from typing import List, Dict, Any
 import settings
 from controllers import GoogleDriveDownloader, FileProcessor, setup_logging
+from imu.utils import process_imu_for_video_dir
 from gcp_storage_services import GCPStorageServices
 from video import Video
 from airtable_services import airtable_services
@@ -23,6 +24,7 @@ class Step:
     DELETE = "delete"
     DOWNLOAD = "download"
     META = "meta_extract"
+    IMU = "imu"
     # HIGHLIGHT = "get_highlights"
     ZIP = "zip"
     COMPRESS = "compress"
@@ -66,6 +68,7 @@ def fail_step(logs, video, step, msg):
             Step.DELETE: VideoStatus.REMOVE_FAIL,
             Step.DOWNLOAD: VideoStatus.DOWNLOAD_FAIL,
             Step.ZIP: VideoStatus.ZIP_FAIL,
+            Step.IMU: VideoStatus.IMU_FAIL,
             Step.UPLOAD_RAW: VideoStatus.UPLOAD_RAW_FAIL,
             Step.UPLOAD_ZIP: VideoStatus.UPLOAD_ZIP_FAIL,
             Step.UPLOAD_COMPRESS: VideoStatus.UPLOAD_COMPRESS_FAIL,
@@ -144,6 +147,19 @@ def process_metadata(video, processor, logs):
     #     logs['highlight_detected'].append(video.unique_video_id)
 
     return True
+
+
+def process_imu(video, logs):
+    metadata_dir = os.path.join(video.local_processed_folder, f"{video.gcp_file_name}_metadata")
+    try:
+        imu_df = process_imu_for_video_dir(metadata_dir)
+        if imu_df is None:
+            return fail_step(logs, video, Step.IMU, f"IMU txt files missing in {metadata_dir}")
+        imu_csv_path = os.path.join(metadata_dir, "imu_combined.csv")
+        imu_df.to_csv(imu_csv_path, index=False)
+        return True
+    except Exception as e:
+        return fail_step(logs, video, Step.IMU, e)
 
 
 def upload_raw(video, logs):
@@ -278,10 +294,14 @@ def process_single_video(video: Video, logs):
         if not process_metadata(video=video, processor=processor, logs=logs):
             return
 
+        if not process_imu(video, logs):
+            return
+
         meta_failed = video.status == VideoStatus.META_FAIL
+        imu_failed = video.status == VideoStatus.IMU_FAIL
         if not upload_raw(video, logs):
             return
-        if meta_failed:
+        if meta_failed or imu_failed:
             return  # ensure stop after raw upload in these cases
 
         # Step 4:
@@ -320,7 +340,7 @@ def process_single_video(video: Video, logs):
 
     finally:
         zip_field_value = None
-        if video.status == VideoStatus.META_FAIL:
+        if video.status in [VideoStatus.META_FAIL, VideoStatus.IMU_FAIL, VideoStatus.ZIP_FAIL]:
             zip_field_value = getattr(video, "meta_error_msg", None) or getattr(video, "last_error_msg", None)
         else:
             zip_field_value = (
