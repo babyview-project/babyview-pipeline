@@ -1,17 +1,19 @@
 import argparse
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
 import shutil
 from typing import List, Dict, Any
 import settings
-from controllers import GoogleDriveDownloader
-from controllers import FileProcessor
+from controllers import GoogleDriveDownloader, FileProcessor, setup_logging
 from gcp_storage_services import GCPStorageServices
 from video import Video
 from airtable_services import airtable_services
 from status_types import VideoStatus
-from databrary_client import DatabraryClient
+
+setup_logging()
+logger = logging.getLogger(__name__)
 
 downloader = GoogleDriveDownloader()
 storage = GCPStorageServices()
@@ -59,13 +61,30 @@ def fail_step(logs, video, step, msg):
     except Exception:
         pass
 
+    if video.status is None:
+        step_status_map = {
+            Step.DELETE: VideoStatus.REMOVE_FAIL,
+            Step.DOWNLOAD: VideoStatus.DOWNLOAD_FAIL,
+            Step.ZIP: VideoStatus.ZIP_FAIL,
+            Step.UPLOAD_RAW: VideoStatus.UPLOAD_RAW_FAIL,
+            Step.UPLOAD_ZIP: VideoStatus.UPLOAD_ZIP_FAIL,
+            Step.UPLOAD_COMPRESS: VideoStatus.UPLOAD_COMPRESS_FAIL,
+        }
+        video.status = step_status_map.get(step, video.status)
+
     result = {
         "video_id": video.unique_video_id,
         "subject_id": video.subject_id,
         "step": step,
         "message": msg,
     }
-    print(result)
+    logger.error(
+        "step_failed video_id=%s subject_id=%s step=%s message=%s",
+        video.unique_video_id,
+        video.subject_id,
+        step,
+        msg,
+    )
     logs[f'{step}_fail'].append(result)
     return False
 
@@ -75,7 +94,12 @@ def handle_deletion(video, logs):
     for gcp_bucket in [f"{video.gcp_bucket_name}_raw", f"{video.gcp_bucket_name}_storage"]:
         success, msg = storage.delete_blobs_with_substring(gcp_bucket, video.unique_video_id)
         if msg:
-            print(f'Deletion msg: {msg}')
+            logger.warning(
+                "delete_msg video_id=%s bucket=%s message=%s",
+                video.unique_video_id,
+                gcp_bucket,
+                msg,
+            )
             logs['file_deletion'].append(msg)
         delete_ok &= success
 
@@ -229,7 +253,6 @@ def compressed_upload(video: Video, logs):
 
 def process_single_video(video: Video, logs):
     processor = FileProcessor(video)
-    error_occurred = False
 
     try:
         # Step 1:
@@ -248,30 +271,23 @@ def process_single_video(video: Video, logs):
         # Download the video from Google Drive
         video.status = None
         if not download_video(video, processor, logs):
-            if not video.google_drive_file_id:
-                error_occurred = False
-            else:
-                error_occurred = True
             return
 
         # Step 3:
         # Extract meta data from video, upload raw to bucket
         if not process_metadata(video=video, processor=processor, logs=logs):
             return
-        if video.status in [VideoStatus.META_FAIL]:
-            if not upload_raw(video, logs):
-                error_occurred = True
+
+        meta_failed = video.status == VideoStatus.META_FAIL
+        if not upload_raw(video, logs):
+            return
+        if meta_failed:
             return  # ensure stop after raw upload in these cases
-        else:
-            if not upload_raw(video, logs):
-                error_occurred = True
-                return
 
         # Step 4:
         # Zip and compress the meta data and vid, upload to storage bucket
         if 'luna' not in video.gopro_video_id.lower() and not video.gcp_raw_location.lower().endswith('lrv'):
             if not zip_metadata(video, processor, logs):
-                error_occurred = True
                 return
             if video.status in [VideoStatus.META_FAIL]:
                 return
@@ -280,49 +296,50 @@ def process_single_video(video: Video, logs):
             return
 
         if not compressed_upload(video, logs):
-            error_occurred = True
             return
 
-        if settings.execute_databrary_uploader:
-            dc = DatabraryClient()
-            if video.compress_video_path and os.path.exists(video.compress_video_path):
-                status_url, error_log = dc.upload_video(video)
-                if error_log:
-                    msg = f"Databrary upload had errors for {video.unique_video_id}: {' | '.join(error_log)}"
-                    print(msg)
-                    logs.setdefault('databrary_upload_failed', []).append(msg)
-                else:
-                    print(f"[Databrary] upload OK for {video.unique_video_id} -> {status_url}")
-            else:
-                print(f"[Databrary] skipped for {video.unique_video_id}: no local compressed video path.")
+        # Fetch GCS object sizes after uploads
+        video.video_size_mb, video.metadata_size_kb, size_err = storage.get_object_sizes(
+            f"{video.gcp_bucket_name}_storage",
+            video.gcp_storage_video_location,
+            video.gcp_storage_zip_location,
+        )
+        if size_err:
+            logs.setdefault('gcs_size_check_failed', []).append(
+                f"{video.unique_video_id}: {size_err}"
+            )
+            logger.warning("gcs_size_check_failed video_id=%s error=%s", video.unique_video_id, size_err)
 
-        video.status = VideoStatus.PROCESSED
+        if not video.status:
+            video.status = VideoStatus.PROCESSED
 
     except Exception as e:
-        error_occurred = True
+        video.status = VideoStatus.UNEXPECTED_FAIL
         logs['unexpected_error'].append(f'{video.unique_video_id}_{str(e)}')
+        logger.exception("unexpected_error video_id=%s error=%s", video.unique_video_id, e)
 
     finally:
-        if not error_occurred:
-            zip_field_value = None
-            if video.status == VideoStatus.META_FAIL:
-                zip_field_value = getattr(video, "meta_error_msg", None) or getattr(video, "last_error_msg", None)
-            else:
-                zip_field_value = (
-                    f'{video.gcp_bucket_name}_storage/{video.gcp_storage_zip_location}'
-                    if video.gcp_storage_zip_location else None
-                )
+        zip_field_value = None
+        if video.status == VideoStatus.META_FAIL:
+            zip_field_value = getattr(video, "meta_error_msg", None) or getattr(video, "last_error_msg", None)
+        else:
+            zip_field_value = (
+                f'{video.gcp_bucket_name}_storage/{video.gcp_storage_zip_location}'
+                if video.gcp_storage_zip_location else None
+            )
 
-            video.pipeline_run_date = datetime.now().strftime("%Y-%m-%d")
-            airtable_services.update_video_table_single_video(video.unique_video_id, {
-                # 'hilight_locations': str(video.highlight) if video.highlight else None,
-                'pipeline_run_date': video.pipeline_run_date,
-                'status': video.status,
-                'duration_sec': video.duration if video.duration else None,
-                'gcp_raw_location': f'{video.gcp_bucket_name}_raw/{video.gcp_raw_location}' if video.local_raw_download_path else None,
-                'gcp_storage_video_location': f'{video.gcp_bucket_name}_storage/{video.gcp_storage_video_location}' if video.gcp_storage_video_location else None,
-                'gcp_storage_zip_location': zip_field_value,
-            })
+        video.pipeline_run_date = datetime.now().strftime("%Y-%m-%d")
+        airtable_services.update_video_table_single_video(video.unique_video_id, {
+            # 'hilight_locations': str(video.highlight) if video.highlight else None,
+            'pipeline_run_date': video.pipeline_run_date,
+            'status': video.status,
+            'duration_sec': video.duration if video.duration else None,
+            'gcp_raw_location': f'{video.gcp_bucket_name}_raw/{video.gcp_raw_location}' if video.local_raw_download_path else None,
+            'gcp_storage_video_location': f'{video.gcp_bucket_name}_storage/{video.gcp_storage_video_location}' if video.gcp_storage_video_location else None,
+            'gcp_storage_zip_location': zip_field_value,
+            'video_size_mb': getattr(video, "video_size_mb", None),
+            'metadata_size_kb': getattr(video, "metadata_size_kb", None),
+        })
         if video.google_drive_file_id:
             processor.clear_directory_contents_raw_storage()
 
@@ -350,6 +367,7 @@ def process_videos(video_tracking_data):
 
     log_name = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_logs.json"
     storage.upload_dict_to_gcs(dict(logs), "hs-babyview-logs", log_name)
+    logger.info("logs_uploaded bucket=hs-babyview-logs object=%s", log_name)
 
     return dict(logs)
 
@@ -376,7 +394,7 @@ def main():
         filter_key=process_filter_key,
         filter_value=process_filter_value
     )
-    print(video_tracking_data, len(video_tracking_data))
+    logger.info("airtable_loaded count=%s", len(video_tracking_data))
     process_videos(video_tracking_data=video_tracking_data)
 
 

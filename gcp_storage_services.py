@@ -226,3 +226,26 @@ class GCPStorageServices:
             return True, None
         except Exception as e:
             return False, str(e)
+
+    def get_object_sizes(self, gcp_bucket: str, video_blob: str | None, zip_blob: str | None):
+        """
+        Return (video_size_mb, metadata_size_kb, error_msg) for blobs in the given bucket.
+        """
+        try:
+            bucket = self.client.bucket(gcp_bucket)
+            video_size_mb = None
+            metadata_size_kb = None
+
+            if video_blob:
+                blob = bucket.get_blob(video_blob)
+                if blob and blob.size is not None:
+                    video_size_mb = round(blob.size / (1024 * 1024), 3)
+
+            if zip_blob:
+                blob = bucket.get_blob(zip_blob)
+                if blob and blob.size is not None:
+                    metadata_size_kb = round(blob.size / 1024, 3)
+
+            return video_size_mb, metadata_size_kb, None
+        except Exception as e:
+            return None, None, f"GCS_SIZE_CHECK: {e}"

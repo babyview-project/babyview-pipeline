@@ -29,26 +29,41 @@ from gcp_storage_services import GCPStorageServices
 from video import Video
 from airtable_services import airtable_services
 
+def setup_logging():
+    root = logging.getLogger()
+    if getattr(root, "_babyview_configured", False):
+        return
+
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    root.setLevel(logging.INFO)
+
+    file_handler = logging.FileHandler('./log.txt')
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.INFO)
+    stream_handler.setFormatter(formatter)
+
+    error_handler = logging.FileHandler(settings.error_log)
+    error_handler.setLevel(logging.ERROR)
+    error_handler.setFormatter(formatter)
+
+    root.addHandler(file_handler)
+    root.addHandler(stream_handler)
+    root.addHandler(error_handler)
+    root._babyview_configured = True
+
+
+setup_logging()
+logger = logging.getLogger(__name__)
+
 # all meta data types that we want to extract
 ALL_METAS = [
     'ACCL', 'GYRO', 'SHUT', 'WBAL', 'WRGB', 'ISOE',
     'UNIF', 'FACE', 'CORI', 'MSKP', 'IORI', 'GRAV',
     'WNDM', 'MWET', 'AALP', 'LSKP'
 ]
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('./log.txt'),
-        logging.StreamHandler()
-    ]
-)
-logging.basicConfig(
-    filename=settings.error_log, filemode='a',
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    level=logging.ERROR
-)
-
 storage_client_instance = GCPStorageServices()
 
 
@@ -80,9 +95,16 @@ class GoogleDriveDownloader:
             video = Video(video_info=video_info.to_dict())  # Convert row to dictionary
             error_msg = video.set_file_id_file_path(google_drive_service=self.drive_service)
             if video.google_drive_file_id:
-                print(f'get_file_paths_from_google_drive ready for {video.unique_video_id}.')
+                logger.info(
+                    "drive_file_ready video_id=%s file_id=%s",
+                    video.unique_video_id,
+                    video.google_drive_file_id,
+                )
             else:
-                print(f'{video_info.get('unique_video_id', None)} not found on G-drive.')
+                logger.warning(
+                    "drive_file_missing video_id=%s",
+                    video_info.get("unique_video_id", None),
+                )
             file_info.append(video)
             errors.append(error_msg)
 
@@ -90,17 +112,33 @@ class GoogleDriveDownloader:
 
     def download_file(self, local_raw_download_folder, video: Video):
         try:
-            print(f'Downloading {video.subject_id}_{video.gopro_video_id} to {local_raw_download_folder}.')
+            logger.info(
+                "download_start video_id=%s subject_id=%s gopro_id=%s dest=%s",
+                video.unique_video_id,
+                video.subject_id,
+                video.gopro_video_id,
+                local_raw_download_folder,
+            )
             request = self.drive_service.files().get_media(fileId=video.google_drive_file_id)
             fh = io.FileIO(local_raw_download_folder, 'wb')
             downloader = MediaIoBaseDownload(fh, request)
             done = False
             while not done:
                 status, done = downloader.next_chunk()
-                print(f"Download {int(status.progress() * 100)}% complete.")
+                logger.info(
+                    "download_progress video_id=%s pct=%s",
+                    video.unique_video_id,
+                    int(status.progress() * 100),
+                )
 
             return done, None
         except Exception as e:
+            logger.exception(
+                "download_failed video_id=%s dest=%s error=%s",
+                getattr(video, "unique_video_id", None),
+                local_raw_download_folder,
+                e,
+            )
             return False, e
 
     def trash_file_by_id(self, file_id: str) -> dict:
