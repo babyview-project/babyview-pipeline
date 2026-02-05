@@ -9,7 +9,6 @@ import numpy as np
 from math import floor
 
 import settings
-import util
 import subprocess
 import pandas as pd
 import ffmpeg
@@ -739,74 +738,6 @@ class FileProcessor:
 
         safe_clear_dir(str(raw_folder) if raw_folder else None)
         safe_clear_dir(str(processed_folder) if processed_folder else None)
-
-
-def miscellaneous_features():
-    babyview_main_raw_bucket = storage_client_instance.client.bucket(bucket_name='babyview_main_raw')
-    babyview_bing_raw_bucket = storage_client_instance.client.bucket(bucket_name='babyview_bing_raw')
-    babyview_main_storage_bucket = storage_client_instance.client.bucket(bucket_name='babyview_main_storage')
-    babyview_bing_storage_bucket = storage_client_instance.client.bucket(bucket_name='babyview_bing_storage')
-    bucket_list = [babyview_bing_raw_bucket, babyview_main_raw_bucket, babyview_main_storage_bucket,
-                   babyview_bing_storage_bucket]
-    checking_buckets = [storage_client_instance.client.bucket(bucket_name='babyview_videos_to_check_raw'),
-                        storage_client_instance.client.bucket(bucket_name='babyview_videos_to_check_storage')]
-
-    # util.update_names_on_google_sheet(gcp_bucket=babyview_main_raw_bucket, spreadsheet_name='BabyView Session Tracking', range_name='Luna_Round_2_Ongoing', mode='new_name')
-    data = []
-    for bucket in checking_buckets:
-        print(f"{bucket.name}:{len(list(bucket.list_blobs()))}")
-        unconverted_files = util.update_gcs_files(gcp_bucket=bucket, spreadsheet_name='BabyView Session Tracking',
-                                                  sheet_name='Main_Release_1_Corrected', update_sheet=False)
-        data.extend(unconverted_files)
-    df = pd.DataFrame(data)
-    df.to_csv("unconverted_files_1.csv", index=False)
-
-    # df = pd.read_csv("unconverted_files.csv")
-    # df["matching_row"] = ""
-    # SEARCH_TABS = [
-    #     "Ongoing_data_collection",
-    #     "Main_Release_1_Corrected",
-    # ]
-    # spreadsheet = util.get_google_sheet_data(credentials_json='creds/hs-babyview-sa.json',
-    #                                          spreadsheet_name='BabyView Session Tracking', full_spreadsheet=True)
-    # sheets_data = {}
-    # for tab_name in SEARCH_TABS:
-    #     try:
-    #         worksheet = spreadsheet.worksheet(tab_name)
-    #         sheets_data[tab_name] = worksheet.get_all_values()  # Fetch all data at once
-    #     except gspread.exceptions.WorksheetNotFound:
-    #         print(f"Warning: Sheet '{tab_name}' not found. Skipping...")
-    #
-    # for index, row in df.iterrows():
-    #     file_name = row["file_name"]
-    #     subject_id, video_id, week = util.extract_ids_and_week(file_name)
-    #
-    #     if subject_id and video_id:
-    #         matches = []  # List to store all matching rows
-    #         # Search in pre-fetched sheets_data
-    #         for tab_name, data in sheets_data.items():
-    #             headers = data[0]  # First row as headers
-    #             rows = data[1:]  # Rest are data rows
-    #
-    #             # Ensure we get the column index for 'Week' (case insensitive)
-    #             try:
-    #                 week_col_idx = [h.lower() for h in headers].index("week")
-    #             except ValueError:
-    #                 print(f"Warning: 'Week' column not found in {tab_name}. Skipping this sheet.")
-    #                 continue  # Skip this tab if "Week" column is missing
-    #
-    #             for row_idx, row_data in enumerate(rows, start=2):  # Start from second row (1-based index)
-    #                 if subject_id in row_data and video_id in row_data and week == row_data[week_col_idx]:
-    #                     matches.append(f"{tab_name} - Row {row_idx}")
-    #
-    #         # Assign matching data to the CSV column
-    #         df.at[index, "matching_row"] = "; ".join(matches) if matches else "no_matching"
-    # df.to_csv("unconverted_files.csv", index=False)
-    # print(f"Updated data written to unconverted_files.csv")
-
-    # util.move_matching_files(source_bucket=storage_client_instance.client.bucket(bucket_name='babyview_main_storage'),
-    #                          target_bucket=storage_client_instance.client.bucket(bucket_name='babyview_videos_to_check_storage'),
-    #                          csv_file="unconverted_files.csv")
 
 
 def _parse_time_str(time_str):

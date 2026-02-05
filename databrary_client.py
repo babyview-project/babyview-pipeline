@@ -569,6 +569,7 @@ class DatabraryClient:
             "airtable_updated": 0,
             "skipped_no_record_id": 0,
             "skipped_no_date_in_name": 0,
+            "token_refresh_count": 0,
             "errors": [],
         }
 
