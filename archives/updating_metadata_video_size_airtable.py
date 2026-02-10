@@ -5,7 +5,7 @@ updating_metadata_video_size_airtable.py
 Purpose
 - Query Airtable "video" table for records where:
     {status} = 'successfully_processed'
-    AND imu_issue is false/blank
+    AND imu_comment is blank
 - For each record:
     - Read GCS locations for storage video + metadata zip (Airtable fields)
     - Fetch object sizes from GCS (no name scanning)
@@ -16,7 +16,7 @@ Purpose
 
 Defaults assume these Airtable fields:
   - status
-  - imu_issue (checkbox)
+  - imu_comment (text)
   - gcp_storage_video_location  (gs://bucket/blob OR bucket/blob)
   - gcp_storage_zip_location    (gs://bucket/blob OR bucket/blob)
   - video_size_mb
@@ -34,7 +34,7 @@ Optional:
   --metadata_size_field_name metadata_size_kb
   --status_field_name status
   --status_value successfully_processed
-  --imu_issue_field_name imu_issue
+  --imu_issue_field_name imu_comment
 """
 
 from __future__ import annotations
@@ -96,13 +96,13 @@ def build_formula(status_field: str, status_value: str, imu_issue_field: str) ->
 
     AND(
       {status}='successfully_processed',
-      OR(IS_BLANK({imu_issue}), {imu_issue}=0)
+      {imu_comment}=BLANK()
     )
     """
     return (
         f"AND("
         f"{{{status_field}}}='{status_value}',"
-        f"OR({{{imu_issue_field}}}=0, {{{imu_issue_field}}}=BLANK())"
+        f"{{{imu_issue_field}}}=BLANK()"
         f")"
     )
 
@@ -130,7 +130,7 @@ def main() -> None:
 
     ap.add_argument("--status_field_name", default="status")
     ap.add_argument("--status_value", default="successfully_processed")
-    ap.add_argument("--imu_issue_field_name", default="imu_issue")
+    ap.add_argument("--imu_issue_field_name", default="imu_comment")
 
     ap.add_argument("--video_location_field_name", default="gcp_storage_video_location")
     ap.add_argument("--zip_location_field_name", default="gcp_storage_zip_location")

@@ -31,23 +31,52 @@ class AirtableServices:
         self.databrary_token_table = self.airtable.table(base_id=app_id, table_name=airtable_databrary_token_table_id)
         self.release_table = self.airtable.table(app_id, release_table_id)
 
-    def get_video_info_from_video_table(self, filter_key=None, filter_value=None):
-        status_filter = f"AND(status != '{VideoStatus.PROCESSED}', status != '{VideoStatus.REMOVED}')"
-        cutoff_date = (datetime.now(pytz.timezone("America/Los_Angeles")) - timedelta(days=7)).strftime("%Y-%m-%d")
+    def _base_video_formula_parts(self) -> List[str]:
+        status_filter = (
+            f"AND({{status}} != '{VideoStatus.PROCESSED}', {{status}} != '{VideoStatus.REMOVED}')"
+        )
+        cutoff_date = (
+            datetime.now(pytz.timezone("America/Los_Angeles")) - timedelta(days=7)
+        ).strftime("%Y-%m-%d")
         date_filter = (
             f"OR("
             f"IS_BEFORE({{logging_date}}, '{cutoff_date}'),"
             f"IS_SAME({{logging_date}}, '{cutoff_date}', 'day')"
             f")"
         )
-        formula_parts = [status_filter, date_filter]
+        return [status_filter, date_filter]
+
+    def _records_to_df(self, records) -> pd.DataFrame:
+        if not records:
+            return pd.DataFrame()
+        for record in records:
+            subject_id_list = record["fields"].get("subject_id", [])
+            participant_id = subject_id_list[0] if subject_id_list else "Unknown"
+            record["fields"]["subject_id"] = self.participant_dict.get(participant_id, None)
+        return pd.DataFrame([record["fields"] for record in records])
+
+    def _build_subject_filter(self, subject_ids: List[str]) -> str:
+        clauses = [f"FIND('{sid}', ARRAYJOIN({{subject_id}}))" for sid in subject_ids]
+        return "OR(" + ", ".join(clauses) + ")"
+
+    def get_video_info_from_video_table(
+        self,
+        filter_key=None,
+        filter_value=None,
+        limit: int | None = None,
+        include_base_filters: bool = True,
+    ):
+        formula_parts = self._base_video_formula_parts() if include_base_filters else []
         if filter_key and filter_value:
-            # if filter_key == "subject_id":
-            #     main_filter = "OR(" + ",".join([f'{{subject_id}} = "{sid}"' for sid in filter_value]) + ")"
-            if isinstance(filter_value, str):
-                main_filter = f"{filter_key} = '{filter_value}'"
+            if filter_key == "pipeline_run_date" and isinstance(filter_value, str):
+                main_filter = f"IS_SAME({{{filter_key}}}, '{filter_value}', 'day')"
+            elif filter_key == "subject_id":
+                values = [filter_value] if isinstance(filter_value, str) else list(filter_value)
+                main_filter = self._build_subject_filter(values)
+            elif isinstance(filter_value, str):
+                main_filter = f"{{{filter_key}}} = '{filter_value}'"
             elif isinstance(filter_value, list):
-                main_filter = "OR(" + ", ".join([f"{filter_key} = '{value}'" for value in filter_value]) + ")"
+                main_filter = "OR(" + ", ".join([f"{{{filter_key}}} = '{value}'" for value in filter_value]) + ")"
             else:
                 main_filter = ""
 
@@ -61,18 +90,58 @@ class AirtableServices:
         formula = "AND(" + ", ".join(formula_parts) + ")"
 
         print(f"Using airtable formula {formula}")
-        records = self.video_table.all(formula=formula)
-        if not records:
-            return pd.DataFrame()  # Return empty DataFrame if no record found
-        for record in records:
-            subject_id_list = record["fields"].get("subject_id", [])
+        if limit:
+            print(f"Limiting Airtable results to first {limit} rows")
+        try:
+            records = self.video_table.all(formula=formula, max_records=limit)
+        except TypeError:
+            records = self.video_table.all(formula=formula)
+            if limit is not None:
+                records = records[:limit]
+        return self._records_to_df(records)
 
-            participant_id = subject_id_list[0] if subject_id_list else "Unknown"
+    def get_video_info_for_subject_ids(
+        self,
+        subject_ids: List[str],
+        limit: int | None = None,
+        include_base_filters: bool = True,
+    ) -> pd.DataFrame:
+        if not subject_ids:
+            return pd.DataFrame()
+        formula_parts = self._base_video_formula_parts() if include_base_filters else []
+        formula_parts.append(self._build_subject_filter(subject_ids))
+        formula = "AND(" + ", ".join(formula_parts) + ")"
+        print(f"Using airtable formula {formula}")
+        if limit:
+            print(f"Limiting Airtable results to first {limit} rows")
+        try:
+            records = self.video_table.all(formula=formula, max_records=limit)
+        except TypeError:
+            records = self.video_table.all(formula=formula)
+            if limit is not None:
+                records = records[:limit]
+        return self._records_to_df(records)
 
-            record["fields"]["subject_id"] = self.participant_dict.get(participant_id, None)
-        df = pd.DataFrame([record["fields"] for record in records])
-
-        return df
+    def get_video_info_by_record_ids(
+        self,
+        record_ids: List[str],
+        limit: int | None = None,
+        include_base_filters: bool = True,
+    ) -> pd.DataFrame:
+        if not record_ids:
+            return pd.DataFrame()
+        records = []
+        chunk_size = 20
+        record_ids = record_ids[:limit] if limit is not None else record_ids
+        for i in range(0, len(record_ids), chunk_size):
+            chunk = record_ids[i:i + chunk_size]
+            id_filter = "OR(" + ", ".join([f"RECORD_ID() = '{rid}'" for rid in chunk]) + ")"
+            formula_parts = self._base_video_formula_parts() if include_base_filters else []
+            formula_parts.append(id_filter)
+            formula = "AND(" + ", ".join(formula_parts) + ")"
+            print(f"Using airtable formula {formula}")
+            records.extend(self.video_table.all(formula=formula))
+        return self._records_to_df(records)
 
     def get_video_ids_for_a_release_set(self, release_name: str) -> List[str]:
         """

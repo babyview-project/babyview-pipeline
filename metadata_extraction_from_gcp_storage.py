@@ -7,7 +7,7 @@ Adds a sanity check after producing the metadata zip:
   up to --max_small_zip_retries times (default 1).
 
 Also includes Airtable filter:
-- imu_issue == true
+- imu_comment is not blank
 - imu_issue_fix_date is blank
 
 Behavior:
@@ -212,7 +212,7 @@ def upload_zip_and_get_size_kb(storage: GCPStorageServices, zip_path: str, dest_
 
 
 def build_formula_imu_true_and_unfixed(imu_issue_field_name: str, imu_issue_fix_date_field_name: str) -> str:
-    return f"AND({{{imu_issue_field_name}}}=1, {{{imu_issue_fix_date_field_name}}}=BLANK())"
+    return f"AND(NOT({{{imu_issue_field_name}}}=BLANK()), {{{imu_issue_fix_date_field_name}}}=BLANK())"
 
 
 @dataclass
@@ -244,7 +244,7 @@ def main() -> None:
     ap.add_argument("--raw_location_field_name", default="gcp_raw_location")
     ap.add_argument("--compress_vid_location_field_name", default="gcp_storage_video_location")
     ap.add_argument("--zip_location_field_name", default="gcp_storage_zip_location")
-    ap.add_argument("--imu_issue_field_name", default="imu_issue")
+    ap.add_argument("--imu_issue_field_name", default="imu_comment")
     ap.add_argument("--metadata_size_field_name", default="metadata_size_kb")
     ap.add_argument("--imu_issue_fix_date_field_name", default="imu_issue_fix_date")
     args = ap.parse_args()

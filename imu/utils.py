@@ -160,19 +160,31 @@ def process_imu_for_video_dir(accel_dir):
 
     # Load CSV data
     imu_data = load_csv_data(accel_csv_path, gyro_csv_path, grav_csv_path)
-    if imu_data is not None:
-        imu_df = pd.DataFrame(imu_data, columns=['Timestamp (s)', 
-                                                 'ACCL_X (m/s²)', 'ACCL_Y (m/s²)', 'ACCL_Z (m/s²)', 
-                                                 'GYRO_X (rad/s)', 'GYRO_Y (rad/s)', 'GYRO_Z (rad/s)',
-                                                 'GRAV_X (m/s²)', 'GRAV_Y (m/s²)', 'GRAV_Z (m/s²)'])
+    if imu_data is None:
+        # delete intermediate CSVs if they exist, then signal failure
+        for path in [accel_csv_path, gyro_csv_path, grav_csv_path]:
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+            except Exception:
+                pass
+        return None
+
+    imu_df = pd.DataFrame(imu_data, columns=['Timestamp (s)',
+                                             'ACCL_X (m/s²)', 'ACCL_Y (m/s²)', 'ACCL_Z (m/s²)',
+                                             'GYRO_X (rad/s)', 'GYRO_Y (rad/s)', 'GYRO_Z (rad/s)',
+                                             'GRAV_X (m/s²)', 'GRAV_Y (m/s²)', 'GRAV_Z (m/s²)'])
         # imu_csv_path = os.path.join(accel_dir, "imu.csv")
         # imu_df.to_csv(imu_csv_path, index=False)
         # print(f"imu data saved to {imu_csv_path}")
 
     # delete the intermediate CSV files
-    os.remove(accel_csv_path)
-    os.remove(gyro_csv_path)
-    os.remove(grav_csv_path)
+    for path in [accel_csv_path, gyro_csv_path, grav_csv_path]:
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception:
+            pass
     
     return imu_df
 

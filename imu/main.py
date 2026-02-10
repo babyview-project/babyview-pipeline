@@ -8,7 +8,7 @@ import glob
 import os
 import argparse
 from utils import process_imu_for_video_dir
-import ray
+# import ray
 
 def create_imu_csv(args, accel_txt_path):
     video_dir = os.path.dirname(accel_txt_path)
@@ -21,7 +21,7 @@ def create_imu_csv(args, accel_txt_path):
     except Exception as e:
         print(f"Error processing {video_dir}: {e}")
         
-@ray.remote
+# @ray.remote
 def create_imu_csv_remote(args, accel_txt_path):
     return create_imu_csv(args, accel_txt_path)
 
@@ -42,6 +42,6 @@ if __name__ == '__main__':
     #     create_imu_csv(args, accel_txt_path)
 
     # NOTE: Uncomment below if you want to run in parallel using Ray
-    ray.init()
+    # ray.init()
     futures = [create_imu_csv_remote.remote(args, accel_txt_path) for accel_txt_path in accl_txt_files]
-    ray.get(futures)
+    # ray.get(futures)

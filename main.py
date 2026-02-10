@@ -68,7 +68,6 @@ def fail_step(logs, video, step, msg):
             Step.DELETE: VideoStatus.REMOVE_FAIL,
             Step.DOWNLOAD: VideoStatus.DOWNLOAD_FAIL,
             Step.ZIP: VideoStatus.ZIP_FAIL,
-            Step.IMU: VideoStatus.IMU_FAIL,
             Step.UPLOAD_RAW: VideoStatus.UPLOAD_RAW_FAIL,
             Step.UPLOAD_ZIP: VideoStatus.UPLOAD_ZIP_FAIL,
             Step.UPLOAD_COMPRESS: VideoStatus.UPLOAD_COMPRESS_FAIL,
@@ -172,7 +171,15 @@ def upload_raw(video, logs):
     return True
 
 
-def zip_metadata(video, processor, logs, *, min_zip_kb: float = 3.0, max_attempts: int = 3):
+def zip_metadata(
+    video,
+    processor,
+    logs,
+    *,
+    min_zip_kb: float = 3.0,
+    max_attempts: int = 3,
+    add_imu_suffix: bool = False,
+):
     last_zip_kb = None
 
     for attempt in range(1, max_attempts + 1):
@@ -222,6 +229,17 @@ def zip_metadata(video, processor, logs, *, min_zip_kb: float = 3.0, max_attempt
         )
         return True
 
+    # Optionally rename zip if IMU succeeded
+    if add_imu_suffix:
+        base, ext = os.path.splitext(video.zipped_file_path)
+        if not base.endswith("_imu"):
+            renamed_path = f"{base}_imu{ext}"
+            try:
+                os.rename(video.zipped_file_path, renamed_path)
+                video.zipped_file_path = renamed_path
+            except Exception as e:
+                return fail_step(logs, video, Step.ZIP, f"Failed to rename zip with _imu suffix: {e}")
+
     # Normal path: upload zip
     video.gcp_storage_zip_location = f"{video.subject_id}/{os.path.basename(video.zipped_file_path)}"
     _, zip_upload_msg = storage.upload_file_to_gcs(
@@ -269,6 +287,7 @@ def compressed_upload(video: Video, logs):
 
 def process_single_video(video: Video, logs):
     processor = FileProcessor(video)
+    imu_failed = False
 
     try:
         # Step 1:
@@ -294,20 +313,17 @@ def process_single_video(video: Video, logs):
         if not process_metadata(video=video, processor=processor, logs=logs):
             return
 
-        if not process_imu(video, logs):
-            return
-
         meta_failed = video.status == VideoStatus.META_FAIL
-        imu_failed = video.status == VideoStatus.IMU_FAIL
+        imu_failed = not process_imu(video, logs)
         if not upload_raw(video, logs):
             return
-        if meta_failed or imu_failed:
-            return  # ensure stop after raw upload in these cases
+        if meta_failed:
+            return  # ensure stop after raw upload if metadata failed
 
         # Step 4:
         # Zip and compress the meta data and vid, upload to storage bucket
         if 'luna' not in video.gopro_video_id.lower() and not video.gcp_raw_location.lower().endswith('lrv'):
-            if not zip_metadata(video, processor, logs):
+            if not zip_metadata(video, processor, logs, add_imu_suffix=not imu_failed):
                 return
             if video.status in [VideoStatus.META_FAIL]:
                 return
@@ -340,7 +356,7 @@ def process_single_video(video: Video, logs):
 
     finally:
         zip_field_value = None
-        if video.status in [VideoStatus.META_FAIL, VideoStatus.IMU_FAIL, VideoStatus.ZIP_FAIL]:
+        if video.status in [VideoStatus.META_FAIL, VideoStatus.ZIP_FAIL]:
             zip_field_value = getattr(video, "meta_error_msg", None) or getattr(video, "last_error_msg", None)
         else:
             zip_field_value = (
@@ -359,6 +375,7 @@ def process_single_video(video: Video, logs):
             'gcp_storage_zip_location': zip_field_value,
             'video_size_mb': getattr(video, "video_size_mb", None),
             'metadata_size_kb': getattr(video, "metadata_size_kb", None),
+            'imu_comment': getattr(video, "last_error_msg", None) if imu_failed else None,
         })
         if video.google_drive_file_id:
             processor.clear_directory_contents_raw_storage()
@@ -394,27 +411,91 @@ def process_videos(video_tracking_data):
 
 def main():
     parser = argparse.ArgumentParser(description="Download videos from cloud services")
-    parser.add_argument('--process_filter_key', type=str, default=None,  #None
-                        choices=['pipeline_run_date', 'status', 'dataset', 'subject_id', 'unique_video_id',
-                                 'status_test'],
-                        help="Choose from ['pipeline_run_date', 'status', 'dataset', 'subject_id', 'unique_video_id', 'status_test']")
-    parser.add_argument('--process_filter_value', type=str, nargs='+', default=None,
-                        help="Choose the value for the filter_key")
+    filter_group = parser.add_mutually_exclusive_group()
+    filter_group.add_argument(
+        '--pipeline_run_date',
+        nargs='?',
+        const='__NULL__',
+        default=None,
+        help="YYYY-MM-DD or provide no value to select NULL pipeline_run_date",
+    )
+    filter_group.add_argument('--status', nargs='+', default=None, help="One or more statuses")
+    filter_group.add_argument(
+        '--dataset',
+        nargs='+',
+        default=None,
+        choices=['BV-main', 'Luna', 'Bing'],
+        help="One or more datasets",
+    )
+    filter_group.add_argument('--subject_id', nargs='+', default=None, help="One or more subject IDs")
+    filter_group.add_argument('--unique_video_id', nargs='+', default=None, help="One or more video record IDs")
+    filter_group.add_argument('--status_test', type=str, default=None, help="Exact status_test value")
+    filter_group.add_argument('--release', type=str, default=None, help="Release name from Releases table")
+    parser.add_argument('--dry_run', action='store_true', help="Only load Airtable and print count")
+    parser.add_argument('--limit', type=int, default=None, help="Optional max number of videos to process")
+    parser.add_argument(
+        '--no_base_filter',
+        action='store_true',
+        help="Bypass base Airtable filters (status/logging_date)",
+    )
 
     args = parser.parse_args()
 
-    if settings.forced_filter:
-        process_filter_key = settings.forced_filter_key
-        process_filter_value = settings.forced_filter_value
-    else:
-        process_filter_key = args.process_filter_key
-        process_filter_value = args.process_filter_value
+    process_filter_key = None
+    process_filter_value = None
 
-    video_tracking_data = airtable_services.get_video_info_from_video_table(
-        filter_key=process_filter_key,
-        filter_value=process_filter_value
-    )
+    if args.release:
+        process_filter_key = "release"
+        process_filter_value = args.release
+    elif args.subject_id:
+        process_filter_key = "subject_id"
+        process_filter_value = args.subject_id
+    elif args.unique_video_id:
+        process_filter_key = "unique_video_id"
+        process_filter_value = args.unique_video_id
+    elif args.status:
+        process_filter_key = "status"
+        process_filter_value = args.status
+    elif args.dataset:
+        process_filter_key = "dataset"
+        process_filter_value = args.dataset
+    elif args.status_test:
+        process_filter_key = "status_test"
+        process_filter_value = args.status_test
+    elif args.pipeline_run_date is not None:
+        process_filter_key = "pipeline_run_date"
+        process_filter_value = (
+            None if args.pipeline_run_date == "__NULL__" else args.pipeline_run_date
+        )
+
+    include_base_filters = not args.no_base_filter
+
+    if process_filter_key == "release" and process_filter_value:
+        release_name = process_filter_value[0] if isinstance(process_filter_value, list) else process_filter_value
+        video_ids = airtable_services.get_video_ids_for_a_release_set(release_name)
+        video_tracking_data = airtable_services.get_video_info_by_record_ids(
+            video_ids,
+            limit=args.limit,
+            include_base_filters=include_base_filters,
+        )
+    elif process_filter_key == "subject_id" and process_filter_value:
+        subject_ids = process_filter_value if isinstance(process_filter_value, list) else [process_filter_value]
+        video_tracking_data = airtable_services.get_video_info_for_subject_ids(
+            subject_ids,
+            limit=args.limit,
+            include_base_filters=include_base_filters,
+        )
+    else:
+        video_tracking_data = airtable_services.get_video_info_from_video_table(
+            filter_key=process_filter_key,
+            filter_value=process_filter_value,
+            limit=args.limit,
+            include_base_filters=include_base_filters,
+        )
     logger.info("airtable_loaded count=%s", len(video_tracking_data))
+    if args.dry_run:
+        print(f"[DRY_RUN] Loaded {len(video_tracking_data)} videos from Airtable.")
+        return
     process_videos(video_tracking_data=video_tracking_data)
 
 
