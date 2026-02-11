@@ -65,8 +65,11 @@ class AirtableServices:
         filter_value=None,
         limit: int | None = None,
         include_base_filters: bool = True,
+        exclude_meta_fail: bool = True,
     ):
         formula_parts = self._base_video_formula_parts() if include_base_filters else []
+        if exclude_meta_fail:
+            formula_parts.append(f"{{status}} != '{VideoStatus.META_FAIL}'")
         if filter_key and filter_value:
             if filter_key == "pipeline_run_date" and isinstance(filter_value, str):
                 main_filter = f"IS_SAME({{{filter_key}}}, '{filter_value}', 'day')"
@@ -105,10 +108,13 @@ class AirtableServices:
         subject_ids: List[str],
         limit: int | None = None,
         include_base_filters: bool = True,
+        exclude_meta_fail: bool = True,
     ) -> pd.DataFrame:
         if not subject_ids:
             return pd.DataFrame()
         formula_parts = self._base_video_formula_parts() if include_base_filters else []
+        if exclude_meta_fail:
+            formula_parts.append(f"{{status}} != '{VideoStatus.META_FAIL}'")
         formula_parts.append(self._build_subject_filter(subject_ids))
         formula = "AND(" + ", ".join(formula_parts) + ")"
         print(f"Using airtable formula {formula}")
@@ -127,6 +133,7 @@ class AirtableServices:
         record_ids: List[str],
         limit: int | None = None,
         include_base_filters: bool = True,
+        exclude_meta_fail: bool = True,
     ) -> pd.DataFrame:
         if not record_ids:
             return pd.DataFrame()
@@ -137,6 +144,8 @@ class AirtableServices:
             chunk = record_ids[i:i + chunk_size]
             id_filter = "OR(" + ", ".join([f"RECORD_ID() = '{rid}'" for rid in chunk]) + ")"
             formula_parts = self._base_video_formula_parts() if include_base_filters else []
+            if exclude_meta_fail:
+                formula_parts.append(f"{{status}} != '{VideoStatus.META_FAIL}'")
             formula_parts.append(id_filter)
             formula = "AND(" + ", ".join(formula_parts) + ")"
             print(f"Using airtable formula {formula}")

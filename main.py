@@ -470,6 +470,7 @@ def main():
         )
 
     include_base_filters = not args.no_base_filter
+    exclude_meta_fail = process_filter_key != "status_test"
 
     if process_filter_key == "release" and process_filter_value:
         release_name = process_filter_value[0] if isinstance(process_filter_value, list) else process_filter_value
@@ -478,6 +479,7 @@ def main():
             video_ids,
             limit=args.limit,
             include_base_filters=include_base_filters,
+            exclude_meta_fail=exclude_meta_fail,
         )
     elif process_filter_key == "subject_id" and process_filter_value:
         subject_ids = process_filter_value if isinstance(process_filter_value, list) else [process_filter_value]
@@ -485,6 +487,7 @@ def main():
             subject_ids,
             limit=args.limit,
             include_base_filters=include_base_filters,
+            exclude_meta_fail=exclude_meta_fail,
         )
     else:
         video_tracking_data = airtable_services.get_video_info_from_video_table(
@@ -492,6 +495,7 @@ def main():
             filter_value=process_filter_value,
             limit=args.limit,
             include_base_filters=include_base_filters,
+            exclude_meta_fail=exclude_meta_fail,
         )
     logger.info("airtable_loaded count=%s", len(video_tracking_data))
     if args.dry_run:
