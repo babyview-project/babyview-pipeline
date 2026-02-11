@@ -9,6 +9,9 @@ A pipeline for downloading, compressing, and managing video metadata from the Go
 ```sh
 pip install -r requirements.txt
 ```
+## System requirements
+- `ffmpeg` must be installed and available on `PATH` for video compression.
+
 ## Build parser file 
 ```sh
 git clone https://github.com/gopro/gpmf-parser.git

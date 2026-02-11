@@ -180,7 +180,7 @@ def process_imu_for_video_dir(accel_dir):
                                              'GYRO_X (rad/s)', 'GYRO_Y (rad/s)', 'GYRO_Z (rad/s)',
                                              'GRAV_X (m/s²)', 'GRAV_Y (m/s²)', 'GRAV_Z (m/s²)'])
     if not grav_exists:
-        imu_df.attrs["imu_comment"] = "no_grav"
+        imu_df.attrs["comment"] = "no_grav"
         # imu_csv_path = os.path.join(accel_dir, "imu.csv")
         # imu_df.to_csv(imu_csv_path, index=False)
         # print(f"imu data saved to {imu_csv_path}")

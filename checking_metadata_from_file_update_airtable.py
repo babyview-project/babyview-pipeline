@@ -7,7 +7,7 @@ checks GCS for corresponding video + metadata objects to compute sizes, then UPD
 
 - video_size_mb (float, MB)
 - metadata_size_kb (float, KB)
-- imu_comment (text) -> set when the uniq_id appears in the input txt (i.e., processed by this script)
+- comment (text) -> set when the uniq_id appears in the input txt (i.e., processed by this script)
 
 Usage:
   python checking_metadata_from_file_update_airtable.py --txt_path /path/to/input.txt
@@ -297,11 +297,11 @@ def main() -> None:
             gcs_limit=args.gcs_limit,
         )
 
-        # imu_comment is set because uniq_id appears in the input txt
+        # comment is set because uniq_id appears in the input txt
         payload = {
             "video_size_mb": gcs_info["video_size_mb"],
             "metadata_size_kb": gcs_info["metadata_size_kb"],
-            "imu_comment": "IMU issue from file list",
+            "comment": "IMU issue from file list",
         }
 
         if args.dry_run:
