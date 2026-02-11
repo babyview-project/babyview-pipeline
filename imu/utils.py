@@ -160,11 +160,22 @@ def process_imu_for_video_dir(accel_dir):
         if grav_exists:
             process_file(grav_txt_path, "GRAV", grav_csv_path)
     else:
-        print(f"IMU ACCL/GYRO txt files for {accel_dir} are missing.")
-        return None
+        missing_required = []
+        if not accel_exists:
+            missing_required.append("ACCL_meta.txt")
+        if not gyro_exists:
+            missing_required.append("GYRO_meta.txt")
+        missing_str = ", ".join(missing_required)
+        raise FileNotFoundError(
+            f"Missing IMU txt files in {accel_dir}: {missing_str}"
+        )
 
     # Load CSV data
-    imu_data = load_csv_data(accel_csv_path, gyro_csv_path, grav_csv_path if grav_exists else None)
+    imu_data, grav_used = load_csv_data(
+        accel_csv_path,
+        gyro_csv_path,
+        grav_csv_path if grav_exists else None
+    )
     if imu_data is None:
         # delete intermediate CSVs if they exist, then signal failure
         for path in [accel_csv_path, gyro_csv_path, grav_csv_path]:
@@ -179,7 +190,7 @@ def process_imu_for_video_dir(accel_dir):
                                              'ACCL_X (m/s²)', 'ACCL_Y (m/s²)', 'ACCL_Z (m/s²)',
                                              'GYRO_X (rad/s)', 'GYRO_Y (rad/s)', 'GYRO_Z (rad/s)',
                                              'GRAV_X (m/s²)', 'GRAV_Y (m/s²)', 'GRAV_Z (m/s²)'])
-    if not grav_exists:
+    if not grav_used:
         imu_df.attrs["comment"] = "no_grav"
         # imu_csv_path = os.path.join(accel_dir, "imu.csv")
         # imu_df.to_csv(imu_csv_path, index=False)
@@ -321,6 +332,7 @@ def load_csv_data(accel_path, gyro_path, grav_path):
         # Load accelerometer and gyroscope data
         accel_data = pd.read_csv(accel_path)
         gyro_data = pd.read_csv(gyro_path)
+        grav_used = False
 
         # Merge based on the closest timestamps
         merged_data = pd.merge_asof(
@@ -331,16 +343,23 @@ def load_csv_data(accel_path, gyro_path, grav_path):
 
         if grav_path is not None and os.path.exists(grav_path):
             grav_data = pd.read_csv(grav_path)
-            # grav data has lower sampling rate (30Hz) than accel and gyro (200Hz)
-            merged_data = pd.merge_asof(
-                grav_data.sort_values('Timestamp (s)'),
-                merged_data.sort_values('Timestamp (s)'),
-                on='Timestamp (s)',
-                direction='nearest'
-            )
+            grav_columns = {"GRAV_X (m/s²)", "GRAV_Y (m/s²)", "GRAV_Z (m/s²)"}
+            if not grav_data.empty and grav_columns.issubset(set(grav_data.columns)):
+                # grav data has lower sampling rate (30Hz) than accel and gyro (200Hz)
+                merged_data = pd.merge_asof(
+                    grav_data.sort_values('Timestamp (s)'),
+                    merged_data.sort_values('Timestamp (s)'),
+                    on='Timestamp (s)',
+                    direction='nearest'
+                )
 
-            # interpolate to fill NaN values (of grav data, since it has lower sampling rate)
-            merged_data = merged_data.interpolate(method='linear', limit_direction='both')
+                # interpolate to fill NaN values (of grav data, since it has lower sampling rate)
+                merged_data = merged_data.interpolate(method='linear', limit_direction='both')
+                grav_used = True
+            else:
+                merged_data["GRAV_X (m/s²)"] = np.nan
+                merged_data["GRAV_Y (m/s²)"] = np.nan
+                merged_data["GRAV_Z (m/s²)"] = np.nan
         else:
             merged_data["GRAV_X (m/s²)"] = np.nan
             merged_data["GRAV_Y (m/s²)"] = np.nan
@@ -353,7 +372,7 @@ def load_csv_data(accel_path, gyro_path, grav_path):
         imu_data[:, 4:7] = merged_data[['GYRO_X (rad/s)', 'GYRO_Y (rad/s)', 'GYRO_Z (rad/s)']]
         imu_data[:, 7:10] = merged_data[["GRAV_X (m/s²)", "GRAV_Y (m/s²)", "GRAV_Z (m/s²)"]]
         
-        return imu_data
+        return imu_data, grav_used
     except Exception as e:
         print(f"Error loading CSV data: {e}")
-        return None
+        return None, False
