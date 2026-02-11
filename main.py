@@ -470,7 +470,7 @@ def main():
         )
 
     include_base_filters = not args.no_base_filter
-    exclude_meta_fail = process_filter_key != "status_test"
+    exclude_meta_fail = process_filter_key not in ["status_test", "unique_video_id"]
 
     if process_filter_key == "release" and process_filter_value:
         release_name = process_filter_value[0] if isinstance(process_filter_value, list) else process_filter_value
