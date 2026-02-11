@@ -41,6 +41,7 @@ class Video:
     gcp_storage_video_location = None
     meta_error_msg = None
     last_error_msg = None
+    imu_comment = None
 
     def __init__(self, video_info: dict):
         self.unique_video_id = video_info.get('unique_video_id', None)

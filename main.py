@@ -154,6 +154,7 @@ def process_imu(video, logs):
         imu_df = process_imu_for_video_dir(metadata_dir)
         if imu_df is None:
             return fail_step(logs, video, Step.IMU, f"IMU txt files missing in {metadata_dir}")
+        video.imu_comment = imu_df.attrs.get("imu_comment")
         imu_csv_path = os.path.join(metadata_dir, "imu_combined.csv")
         imu_df.to_csv(imu_csv_path, index=False)
         return True
@@ -375,7 +376,7 @@ def process_single_video(video: Video, logs):
             'gcp_storage_zip_location': zip_field_value,
             'video_size_mb': getattr(video, "video_size_mb", None),
             'metadata_size_kb': getattr(video, "metadata_size_kb", None),
-            'imu_comment': getattr(video, "last_error_msg", None) if imu_failed else None,
+            'imu_comment': getattr(video, "last_error_msg", None) if imu_failed else getattr(video, "imu_comment", None),
         })
         if video.google_drive_file_id:
             processor.clear_directory_contents_raw_storage()
