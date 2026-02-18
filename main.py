@@ -315,7 +315,11 @@ def process_single_video(video: Video, logs):
             return
 
         meta_failed = video.status == VideoStatus.META_FAIL
-        imu_failed = not process_imu(video, logs)
+        if 'luna' in video.gopro_video_id.lower():
+            imu_failed = False
+            video.comment = None
+        else:
+            imu_failed = not process_imu(video, logs)
         if not upload_raw(video, logs):
             return
         if meta_failed:
