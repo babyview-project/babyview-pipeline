@@ -38,6 +38,26 @@ class ProgressBytesIO(BytesIO):
         return self._bytes_io.tell()
 
 
+class ProgressWriteFile:
+    def __init__(self, file_obj, progress_bar):
+        self._file_obj = file_obj
+        self._progress_bar = progress_bar
+
+    def write(self, data):
+        written = self._file_obj.write(data)
+        self._progress_bar.update(written)
+        return written
+
+    def flush(self):
+        return self._file_obj.flush()
+
+    def close(self):
+        return self._file_obj.close()
+
+    def tell(self):
+        return self._file_obj.tell()
+
+
 class GCPStorageServices:
     creds = service_account.Credentials.from_service_account_file(settings.gcp_service_account_path)
     client = storage.Client(credentials=creds)
@@ -221,7 +241,20 @@ class GCPStorageServices:
             blob = bucket.blob(blob_path)
 
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            blob.download_to_filename(local_path)
+            blob.reload()
+            total_size = blob.size or 0
+            pbar = tqdm(
+                total=total_size if total_size > 0 else None,
+                unit='B',
+                unit_scale=True,
+                desc=f'Downloading {blob_path}',
+            )
+            try:
+                with open(local_path, "wb") as fh:
+                    progress_fh = ProgressWriteFile(fh, pbar)
+                    blob.download_to_file(progress_fh)
+            finally:
+                pbar.close()
 
             return True, None
         except Exception as e:

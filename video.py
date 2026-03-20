@@ -63,6 +63,18 @@ class Video:
         self.gcp_file_name = f"{self.subject_id}_{self.normalize_date(date=self.date, date_format='%Y-%m-%d')}_{self.session_num}_{self.unique_video_id}"
         self.gcp_bucket_name = settings.google_drive_entry_point_folder_names[1].lower() if 'bing' in self.dataset.lower() else settings.google_drive_entry_point_folder_names[0].lower()
         self.set_google_drive_video_name()
+        self.gcp_raw_location = self._normalize_gcp_location(
+            video_info.get('gcp_raw_location', None),
+            f"{self.gcp_bucket_name}_raw",
+        )
+        self.gcp_storage_zip_location = self._normalize_gcp_location(
+            video_info.get('gcp_storage_zip_location', None),
+            f"{self.gcp_bucket_name}_storage",
+        )
+        self.gcp_storage_video_location = self._normalize_gcp_location(
+            video_info.get('gcp_storage_video_location', None),
+            f"{self.gcp_bucket_name}_storage",
+        )
 
     def to_dict(self):
         """Converts the Video object attributes into a dictionary."""
@@ -75,6 +87,22 @@ class Video:
         except Exception as e:
             print(f"Error when set_date_for_naming for {self.subject_id}_{self.gopro_video_id}: {date}. {e}")
             return None
+
+    def _normalize_gcp_location(self, value, bucket_name):
+        if value is None or pd.isna(value):
+            return None
+        location = str(value).strip()
+        if not location:
+            return None
+        if location.startswith("gs://"):
+            prefix = f"gs://{bucket_name}/"
+            if location.startswith(prefix):
+                return location[len(prefix):]
+            return location
+        prefix = f"{bucket_name}/"
+        if location.startswith(prefix):
+            return location[len(prefix):]
+        return location
 
     def set_google_drive_video_name(self):
         try:

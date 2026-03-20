@@ -16,8 +16,15 @@ from status_types import VideoStatus
 setup_logging()
 logger = logging.getLogger(__name__)
 
-downloader = GoogleDriveDownloader()
+downloader = None
 storage = GCPStorageServices()
+
+
+def get_downloader() -> GoogleDriveDownloader:
+    global downloader
+    if downloader is None:
+        downloader = GoogleDriveDownloader()
+    return downloader
 
 
 class Step:
@@ -112,13 +119,39 @@ def handle_deletion(video, logs):
     return True
 
 
-def download_video(video, processor, logs):
-    if not video.google_drive_file_id:
-        video.status = VideoStatus.NOT_FOUND
-        return False
+def download_video(video, processor, logs, download_source: str = "google_drive"):
+    if download_source == "gcp_raw":
+        if not video.gcp_raw_location:
+            video.status = VideoStatus.NOT_FOUND
+            return fail_step(
+                logs,
+                video,
+                Step.DOWNLOAD,
+                f"Missing gcp_raw_location in Airtable for {video.unique_video_id}",
+            )
+        source_bucket = f"{video.gcp_bucket_name}_raw"
+        raw_location = str(video.gcp_raw_location)
+        # Handle Airtable values that may include full bucket prefix.
+        if raw_location.startswith("gs://"):
+            raw_location = raw_location.replace(f"gs://{source_bucket}/", "", 1)
+        elif raw_location.startswith(f"{source_bucket}/"):
+            raw_location = raw_location.replace(f"{source_bucket}/", "", 1)
+        video.gcp_raw_location = raw_location
 
     video.local_raw_download_path, video.local_processed_folder = make_local_directory(video)
-    success, msg = downloader.download_file(video.local_raw_download_path, video)
+
+    if download_source == "gcp_raw":
+        success, msg = storage.download_file_from_gcs(
+            source_bucket,
+            video.gcp_raw_location,
+            str(video.local_raw_download_path),
+        )
+    else:
+        if not video.google_drive_file_id:
+            video.status = VideoStatus.NOT_FOUND
+            return False
+        success, msg = get_downloader().download_file(video.local_raw_download_path, video)
+
     if msg:
         return fail_step(logs, video, Step.DOWNLOAD, msg)
 
@@ -286,10 +319,9 @@ def compressed_upload(video: Video, logs):
     return True
 
 
-def process_single_video(video: Video, logs):
+def process_single_video(video: Video, logs, download_source: str = "google_drive"):
     processor = FileProcessor(video)
     imu_failed = False
-
     try:
         # Step 1:
         # If status == delete, delete orig files and mark airtable
@@ -306,7 +338,7 @@ def process_single_video(video: Video, logs):
         # Step 2:
         # Download the video from Google Drive
         video.status = None
-        if not download_video(video, processor, logs):
+        if not download_video(video, processor, logs, download_source=download_source):
             return
 
         # Step 3:
@@ -320,8 +352,9 @@ def process_single_video(video: Video, logs):
             video.comment = None
         else:
             imu_failed = not process_imu(video, logs)
-        if not upload_raw(video, logs):
-            return
+        if download_source == "google_drive":
+            if not upload_raw(video, logs):
+                return
         if meta_failed:
             return  # ensure stop after raw upload if metadata failed
 
@@ -386,7 +419,7 @@ def process_single_video(video: Video, logs):
             processor.clear_directory_contents_raw_storage()
 
 
-def process_videos(video_tracking_data):
+def process_videos(video_tracking_data, download_source: str = "google_drive"):
     from collections import defaultdict
     logs = defaultdict(list)
 
@@ -397,13 +430,19 @@ def process_videos(video_tracking_data):
         return dict(logs)
 
     logs['airtable'].append(f"{len(video_tracking_data)}_Loaded")
-    downloading_file_info, log_message = downloader.get_file_paths_from_google_drive(
-        video_info_from_tracking=video_tracking_data)
-    logs['loading_download_info_error'].append(log_message)
-
+    if download_source == "google_drive":
+        downloading_file_info, log_message = get_downloader().get_file_paths_from_google_drive(
+            video_info_from_tracking=video_tracking_data
+        )
+        logs['loading_download_info_error'].append(log_message)
+    else:
+        downloading_file_info = [
+            Video(video_info=row.to_dict()) for _, row in video_tracking_data.iterrows()
+        ]
+        logs['loading_download_info_error'].append([])
     for video in downloading_file_info:
         try:
-            process_single_video(video, logs)
+            process_single_video(video, logs, download_source=download_source)
         except Exception as e:
             logs['general_error'].append({f'{video.unique_video_id}': str(e)})
 
@@ -439,6 +478,13 @@ def main():
     parser.add_argument('--dry_run', action='store_true', help="Only load Airtable and print count")
     parser.add_argument('--limit', type=int, default=None, help="Optional max number of videos to process")
     parser.add_argument(
+        '--download_source',
+        type=str,
+        choices=['google_drive', 'gcp_raw'],
+        default='google_drive',
+        help="Where to download source videos from for processing.",
+    )
+    parser.add_argument(
         '--no_base_filter',
         action='store_true',
         help="Bypass base Airtable filters (status/logging_date)",
@@ -473,7 +519,7 @@ def main():
             None if args.pipeline_run_date == "__NULL__" else args.pipeline_run_date
         )
 
-    include_base_filters = not args.no_base_filter
+    include_base_filters = False if process_filter_key == "status_test" else (not args.no_base_filter)
     exclude_meta_fail = process_filter_key not in ["status_test", "unique_video_id"]
 
     if process_filter_key == "release" and process_filter_value:
@@ -505,7 +551,7 @@ def main():
     if args.dry_run:
         print(f"[DRY_RUN] Loaded {len(video_tracking_data)} videos from Airtable.")
         return
-    process_videos(video_tracking_data=video_tracking_data)
+    process_videos(video_tracking_data=video_tracking_data, download_source=args.download_source)
 
 
 
