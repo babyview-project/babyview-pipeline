@@ -150,14 +150,18 @@ class Video:
 
                 folder_id = items[0]['id']
 
-            query = f"'{folder_id}' in parents and name = '{self.google_drive_video_name}'"
-            results = google_drive_service.files().list(q=query, **kwargs).execute()
-            items = results.get('files', [])
-            if not items:
+            file_item = self._find_drive_video_file(
+                google_drive_service=google_drive_service,
+                folder_id=folder_id,
+                file_name=self.google_drive_video_name,
+                list_kwargs=kwargs,
+            )
+            if file_item is None:
                 return f'{self.unique_video_id}_{self.subject_id}_{self.gopro_video_id}_drive_video_"{self.google_drive_video_name}"_not_found'
 
-            self.google_drive_file_id = items[0]["id"]
-            self.google_drive_file_path = "/".join(google_drive_folder_path + [self.google_drive_video_name])
+            self.google_drive_file_id = file_item["id"]
+            actual_name = file_item.get("name", self.google_drive_video_name)
+            self.google_drive_file_path = "/".join(google_drive_folder_path + [actual_name])
             self.gcp_raw_location = f"{'/'.join(gcp_folder_path + [self.gcp_file_name])}{os.path.splitext(self.google_drive_video_name)[1]}"
 
             return None
@@ -165,3 +169,112 @@ class Video:
             msg = f"set_file_id_file_path failed to setup for {self.unique_video_id}. {e}"
             print(msg)
             return msg
+
+    @staticmethod
+    def _escape_drive_query_value(value: str) -> str:
+        """Escape backslashes and single quotes for Google Drive query strings."""
+        return value.replace("\\", "\\\\").replace("'", "\\'")
+
+    def _find_drive_video_file(self, google_drive_service, folder_id: str, file_name: str, list_kwargs: dict):
+        """Locate a file in a Drive folder, tolerating Drive's auto-rename suffix.
+
+        When duplicate uploads occur, Drive can store the file under a name like
+        'GX010067 (1).MP4'. Even after a manual rename to 'GX010067.MP4', the
+        exact-match `name = '...'` query may not return the file because Drive's
+        name index can still reflect the original upload name.
+
+        We try three tiers, cheapest first, and at every tier we prefer an
+        exact-name match over a '<base> (N).<ext>' variant. This matters when
+        both files coexist in the same folder: we must always pick the exact
+        name (e.g. 'GX010067.MP4') if it exists, never the suffixed sibling.
+
+          1) Exact match `name = '<file>'` (1 API call). Strict by definition.
+          2) `name contains '<base>'` then Python regex filter. Returns only
+             when the exact name is among the matches; if only suffix variants
+             are seen, fall through to tier 3 to confirm whether an exact-name
+             file exists (the search index could be stale for that name).
+          3) List the entire parent folder and Python regex filter. The `name`
+             field returned by `files.list` is the file's true current display
+             name, so this bypasses the search index entirely. We scan every
+             page; an exact-name match short-circuits and wins, otherwise we
+             return the first suffix variant we saw.
+        """
+        base, ext = os.path.splitext(file_name)
+        pattern = re.compile(
+            rf"^{re.escape(base)}(?:\s*\(\d+\))?{re.escape(ext)}$",
+            re.IGNORECASE,
+        ) if base else None
+        file_name_lower = file_name.lower()
+
+        safe_name = self._escape_drive_query_value(file_name)
+        query = f"'{folder_id}' in parents and name = '{safe_name}' and trashed = false"
+        results = google_drive_service.files().list(q=query, **list_kwargs).execute()
+        items = results.get('files', [])
+        if items:
+            return items[0]
+
+        if pattern is None:
+            return None
+
+        safe_base = self._escape_drive_query_value(base)
+        fallback_query = (
+            f"'{folder_id}' in parents and name contains '{safe_base}' and trashed = false"
+        )
+        fallback_results = google_drive_service.files().list(q=fallback_query, **list_kwargs).execute()
+        tier2_suffix_match = None
+        for item in fallback_results.get('files', []):
+            name = item.get('name', '')
+            if not pattern.match(name):
+                continue
+            if name.lower() == file_name_lower:
+                return item
+            if tier2_suffix_match is None:
+                tier2_suffix_match = item
+
+        scan_match = self._scan_folder_for_drive_video(
+            google_drive_service=google_drive_service,
+            folder_id=folder_id,
+            file_name=file_name,
+            pattern=pattern,
+            list_kwargs=list_kwargs,
+        )
+        if scan_match is not None:
+            return scan_match
+
+        return tier2_suffix_match
+
+    def _scan_folder_for_drive_video(self, google_drive_service, folder_id: str, file_name: str, pattern, list_kwargs: dict):
+        """Last-resort folder scan. Reads each file's true current display name
+        (bypassing the search index), prefers an exact-name match, and only
+        falls back to the first '<base> (N).<ext>' variant after every page has
+        been scanned. Used when the indexed lookups miss, e.g. when Drive's
+        name index is stale after a rename.
+        """
+        scan_kwargs = dict(list_kwargs)
+        scan_kwargs["fields"] = "nextPageToken, files(id, name)"
+        scan_query = (
+            f"'{folder_id}' in parents and trashed = false "
+            f"and mimeType != 'application/vnd.google-apps.folder'"
+        )
+
+        file_name_lower = file_name.lower()
+        suffix_match = None
+        page_token = None
+        while True:
+            page = google_drive_service.files().list(
+                q=scan_query,
+                pageToken=page_token,
+                pageSize=1000,
+                **scan_kwargs,
+            ).execute()
+            for item in page.get('files', []):
+                name = item.get('name', '')
+                if not pattern.match(name):
+                    continue
+                if name.lower() == file_name_lower:
+                    return item
+                if suffix_match is None:
+                    suffix_match = item
+            page_token = page.get('nextPageToken')
+            if not page_token:
+                return suffix_match
