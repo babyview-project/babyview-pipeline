@@ -4,9 +4,18 @@
 .RData
 .Ruserdata
 creds/
+data/
+gpmf-parser/
+gpmf-parser-exec
 /data/release_1.0
 .DS_Store
 data/.DS_Store
 enrollment_visualize/.DS_Store
 enrollment_visualize/rsconnect/documents/enrollment_visualization_new_pipeline.Rmd/rpubs.com/rpubs/Document.dcf
 enrollment_visualize/rsconnect/documents/enrollment_visualization_new_pipeline.Rmd/rpubs.com/rpubs/Publish Document.dcf
+data/BabyView Demographic Sheet.csv
+data/BabyView Demographic Sheet.xlsx
+enrollment_visualize/family_demographics.Rmd
+.DS_Store
+log.txt
+

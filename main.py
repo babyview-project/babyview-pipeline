@@ -1,636 +1,558 @@
-import os
-import io
-import shutil
-import traceback
 import argparse
 import logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('./log.txt'),
-        logging.StreamHandler()
-    ]
-)
-import subprocess
-import pandas as pd
-
-from tqdm import tqdm
+import os
 from datetime import datetime
-from string import ascii_uppercase
+from pathlib import Path
+import shutil
 from typing import List, Dict, Any
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
-from moviepy.editor import VideoFileClip
-
-import meta_extract.get_device_id as device
-from meta_extract.get_highlight_flags import examine_mp4, sec2dtime
-
+import settings
+from controllers import GoogleDriveDownloader, FileProcessor, setup_logging
+from imu.utils import process_imu_for_video_dir
 from gcp_storage_services import GCPStorageServices
+from video import Video
+from airtable_services import airtable_services
+from status_types import VideoStatus
 
-# all meta data types that we want to extract
-ALL_METAS = [
-    'ACCL', 'GYRO', 'SHUT', 'WBAL', 'WRGB', 'ISOE',
-    'UNIF', 'FACE', 'CORI', 'MSKP', 'IORI', 'GRAV',
-    'WNDM', 'MWET', 'AALP', 'LSKP'
-]
+setup_logging()
+logger = logging.getLogger(__name__)
 
-logging.basicConfig(
-    filename='error_log.txt', filemode='a',
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    level=logging.ERROR
-)
+downloader = None
+storage = GCPStorageServices()
 
 
-
-class GoogleDriveDownloader:
-    storage_client_instance = GCPStorageServices()
-
-    def __init__(self, args):
-        self.args = args
-        " Babyview drive root IDs"
-        self.babyview_drive_id = '0AJtfZGZvxvfxUk9PVA'
-        self.storage_drive_id = '0AJGltX6vgytGUk9PVA'        
-        self.total_video_count = 0
-        # keep track of the video durations
-        self.video_durations = {}
-        self._prep_services()
-        self.datetime_tracking = self.sheet_to_dataframe()
-        self.gcs_buckets = self.storage_client_instance.list_gcs_buckets()        
-        logging.info(f"GCP_existing_buckets: {self.gcs_buckets}")
+def get_downloader() -> GoogleDriveDownloader:
+    global downloader
+    if downloader is None:
+        downloader = GoogleDriveDownloader()
+    return downloader
 
 
-    def _prep_services(self):
-        """ Prepare the Google Drive and Google Sheets services used through out the pipeline """
-        self.SCOPES = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/drive']
-        self.drive_service = self.build_google_drive_service(service_type='drive')
-        self.sheets_service = self.build_google_drive_service(service_type='sheets')
+class Step:
+    DELETE = "delete"
+    DOWNLOAD = "download"
+    META = "meta_extract"
+    IMU = "imu"
+    # HIGHLIGHT = "get_highlights"
+    ZIP = "zip"
+    COMPRESS = "compress"
+    ROTATE = 'rotate'
+    BLACKOUT = 'blackout'
+    UPLOAD_ZIP = "upload_zip"
+    UPLOAD_COMPRESS = "upload_compress"
+    UPLOAD_RAW = "upload_raw"
 
 
-    def get_file_id_by_path(self, path_list: List[str]) -> str:        
-        """ Takes a list of folder names and the file name then returns the file ID """        
-        if self.args.bv_type == 'bing':
-            folder_id = "1-ATtN-wZ_mVY3Hm8Q0DO9CVizBsAmY6D"            
-        elif self.args.bv_type in ['main', 'luna']:
-            folder_id = "1ZfVyOBqb2L-Sw0b5himyg_ysB6Mwb8bo"            
+def make_local_directory(video):
+    os.makedirs(settings.raw_file_root, exist_ok=True)
+    os.makedirs(settings.process_file_root, exist_ok=True)
 
-        kwargs = dict(
-            driveId=self.babyview_drive_id, 
-            corpora='drive', 
-            includeItemsFromAllDrives=True, 
-            supportsAllDrives=True, 
-            fields="files(id, name)"
+    entry_point = settings.google_drive_entry_point_folder_names[1] if 'bing' in video.dataset.lower() \
+        else settings.google_drive_entry_point_folder_names[0]
+
+    local_raw_download_path = os.path.join(settings.raw_file_root, entry_point, video.gcp_raw_location)
+    local_raw_download_folder = os.path.dirname(local_raw_download_path)
+    local_processed_folder = os.path.join(settings.process_file_root, entry_point, video.subject_id,
+                                          video.gopro_video_id)
+    local_processed_meta_data_folder = os.path.join(local_processed_folder, f'{video.gcp_file_name}_metadata')
+
+    for folder in [local_raw_download_folder, local_processed_folder, local_processed_meta_data_folder]:
+        os.makedirs(folder, exist_ok=True)
+
+    return Path(local_raw_download_path).resolve(), Path(local_processed_folder).resolve()
+
+
+def fail_step(logs, video, step, msg):
+    # Store last error on the video so finally() can write it to Airtable if needed
+    try:
+        video.last_error_msg = str(msg)
+        if step in [Step.META, Step.ZIP]:
+            video.meta_error_msg = str(msg)
+    except Exception:
+        pass
+
+    if video.status is None:
+        step_status_map = {
+            Step.DELETE: VideoStatus.REMOVE_FAIL,
+            Step.DOWNLOAD: VideoStatus.DOWNLOAD_FAIL,
+            Step.ZIP: VideoStatus.ZIP_FAIL,
+            Step.UPLOAD_RAW: VideoStatus.UPLOAD_RAW_FAIL,
+            Step.UPLOAD_ZIP: VideoStatus.UPLOAD_ZIP_FAIL,
+            Step.UPLOAD_COMPRESS: VideoStatus.UPLOAD_COMPRESS_FAIL,
+        }
+        video.status = step_status_map.get(step, video.status)
+
+    result = {
+        "video_id": video.unique_video_id,
+        "subject_id": video.subject_id,
+        "step": step,
+        "message": msg,
+    }
+    logger.error(
+        "step_failed video_id=%s subject_id=%s step=%s message=%s",
+        video.unique_video_id,
+        video.subject_id,
+        step,
+        msg,
+    )
+    logs[f'{step}_fail'].append(result)
+    return False
+
+
+def handle_deletion(video, logs):
+    delete_ok = True
+    for gcp_bucket in [f"{video.gcp_bucket_name}_raw", f"{video.gcp_bucket_name}_storage"]:
+        success, msg = storage.delete_blobs_with_substring(gcp_bucket, video.unique_video_id)
+        if msg:
+            logger.warning(
+                "delete_msg video_id=%s bucket=%s message=%s",
+                video.unique_video_id,
+                gcp_bucket,
+                msg,
             )
-        for folder_name in path_list[:-1]:
-            query = f"'{folder_id}' in parents and name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder'"
-            results = self.drive_service.files().list(q=query, **kwargs).execute()
-            items = results.get('files', [])
-            if not items:
-                print(f'Folder "{folder_name}" not found.')
-                return None
-            folder_id = items[0]['id']            
-        
-        file_name = path_list[-1]        
-        query = f"'{folder_id}' in parents and name = '{file_name}'"
-        results = self.drive_service.files().list(q=query, **kwargs).execute()
-        items = results.get('files', [])
-        if not items:
-            print(f'File "{file_name}" not found.')
-            return None
+            logs['file_deletion'].append(msg)
+        delete_ok &= success
 
-        return items[0]['id']
+    if not delete_ok:
+        video.status = VideoStatus.REMOVE_FAIL
+        return fail_step(logs, video, Step.DELETE, "Some files failed deletion")
+
+    return True
 
 
-    def get_downloading_file_paths(self) -> Dict[str, str]:
-        downloading_file_info = []
-        # @TODO: Temporary selecting row ranges in different runs to process in parallel, 
-        # with head, tail and 
-        for idx, row in tqdm(self.datetime_tracking.iterrows()):    #.iloc[1063: 2000].iterrows()):            
-            if self.args.bv_type in ['main', 'luna']:
-                subject_id = row['subject_id']
-                video_id = row['video_id']
-                week = row['Week']
-                processed_date = row['Processed_date']
-                status = row['Status']
-                date = row['Date']
-                time = row['Time']
-                # this is the date when the RAs manually processed the video, which can be processed by the pipeline
-                manual_process_date = row['date_processed']                               
-                
-                is_subject_id = True if self.args.subject_id == 'all' else subject_id == self.args.subject_id
-                # only process videos that have not been processed or have not been uploaded                
-                if (not processed_date or status != 'Uploaded') and is_subject_id and manual_process_date:
-                    if 'LUNA' in video_id:
-                        video_name = f'{video_id}.avi'
-                    else:
-                        if video_id.startswith('GX'):
-                            video_name = f'{video_id}.MP4'
-                        else:
-                            video_name = f'{video_id}.LRV'
-                    
-                    folder_list = [subject_id, 'By Date', week, video_name]
-                    file_id = self.get_file_id_by_path(folder_list)
-                    week_str = week.replace('/', '.')
-                    file_path = f'{subject_id}/By Date/{week_str}/{video_name}'
-                    if file_id:                        
-                            # on drive, the first content row starts at 2
-                            downloading_file_info.append({
-                                'idx': idx+2, 'file_id': file_id, 'file_path': file_path, 
-                                # need to add these information to the dictionary
-                                'Processed_date': '', 'Status': '', 'Duration': ''
-                            })
-                    else:
-                        logging.error(f'File ID not found for {file_path}')
-                        downloading_file_info.append({
-                            'idx': idx+2, 'file_id': file_id, 'file_path': file_path, 
-                            # need to add these information to the dictionary
-                            'Processed_date': '', 'Status': 'not found', 'Duration': ''
-                        })
-                else:
-                    logging.info(f'File {video_id} for {subject_id} cannot be processed at this time.')
+def download_video(video, processor, logs, download_source: str = "google_drive"):
+    if download_source == "gcp_raw":
+        if not video.gcp_raw_location:
+            video.status = VideoStatus.NOT_FOUND
+            return fail_step(
+                logs,
+                video,
+                Step.DOWNLOAD,
+                f"Missing gcp_raw_location in Airtable for {video.unique_video_id}",
+            )
+        source_bucket = f"{video.gcp_bucket_name}_raw"
+        raw_location = str(video.gcp_raw_location)
+        # Handle Airtable values that may include full bucket prefix.
+        if raw_location.startswith("gs://"):
+            raw_location = raw_location.replace(f"gs://{source_bucket}/", "", 1)
+        elif raw_location.startswith(f"{source_bucket}/"):
+            raw_location = raw_location.replace(f"{source_bucket}/", "", 1)
+        video.gcp_raw_location = raw_location
 
-            else:    # special processing for bing
-                subject_id = row['subject_id']
-                video_id = row['video_id']
-                processed_date = row['Processed_date']
-                status = row['Status']
-                date = row['Date']
-                is_subject_id = True if self.args.subject_id == 'all' else subject_id == self.args.subject_id
+    video.local_raw_download_path, video.local_processed_folder = make_local_directory(video)
 
-                if is_subject_id and (not processed_date or status != 'Uploaded'):
-                    if video_id.startswith('GX'):
-                        video_name = f'{video_id}.MP4'
-                    else:
-                        video_name = f'{video_id}.LRV'
-                    
-                    folder_list = [subject_id, date, video_name]
-                    file_id = self.get_file_id_by_path(folder_list)
-                    date_str = date.replace('/', '.')
-                    file_path = f'{subject_id}/{date_str}/{video_name}'
-                    if file_id:                        
-                                # on drive, the first content row starts at 2
-                                downloading_file_info.append({
-                                    'idx': idx+2, 'file_id': file_id, 'file_path': file_path, 
-                                    # need to add these information to the dictionary
-                                    'Processed_date': '', 'Status': '', 'Duration': ''
-                                })
-                    else:
-                        logging.error(f'File ID not found for {file_path}')
-                        downloading_file_info.append({
-                            'idx': idx+2, 'file_id': file_id, 'file_path': file_path, 
-                            # need to add these information to the dictionary
-                            'Processed_date': '', 'Status': 'not found', 'Duration': ''
-                        })
-                
-                
-        return downloading_file_info
+    if download_source == "gcp_raw":
+        success, msg = storage.download_file_from_gcs(
+            source_bucket,
+            video.gcp_raw_location,
+            str(video.local_raw_download_path),
+        )
+    else:
+        if not video.google_drive_file_id:
+            video.status = VideoStatus.NOT_FOUND
+            return False
+        success, msg = get_downloader().download_file(video.local_raw_download_path, video)
+
+    if msg:
+        return fail_step(logs, video, Step.DOWNLOAD, msg)
+
+    video.duration = processor.get_video_duration()
+
+    return True
 
 
-    def extract_meta(self, video_path, output_path):
-        extract_success = True
-        for meta in ALL_METAS:
-            meta_path = os.path.join(output_path, f'{meta}_meta.txt')
-            print(video_path, meta_path)
-            cmd = f'../gpmf-parser/gpmf-parser {video_path} -f{meta} -a | tee {meta_path}'
+def process_metadata(video, processor, logs):
+    if 'luna' in video.gopro_video_id.lower() or video.gcp_raw_location.lower().endswith('lrv'):
+        return True
 
+    meta_data_output, meta_err = processor.extract_meta()
+    if meta_err:
+        video.status = VideoStatus.META_FAIL
+        video.gcp_storage_zip_location = meta_err
+        fail_step(logs, video, Step.META, meta_err)
+        return True  # still continue even on meta failure
+
+    # video.highlight, hi_err = processor.highlight_detection()
+    # if hi_err:
+    #     return fail_step(logs, video, Step.HIGHLIGHT, hi_err)
+    #
+    # if video.highlight:
+    #     logs['highlight_detected'].append(video.unique_video_id)
+
+    return True
+
+
+def process_imu(video, logs):
+    metadata_dir = os.path.join(video.local_processed_folder, f"{video.gcp_file_name}_metadata")
+    try:
+        imu_df = process_imu_for_video_dir(metadata_dir)
+        if imu_df is None:
+            return fail_step(logs, video, Step.IMU, f"IMU txt files missing in {metadata_dir}")
+        video.comment = imu_df.attrs.get("comment")
+        imu_csv_path = os.path.join(metadata_dir, "imu_combined.csv")
+        imu_df.to_csv(imu_csv_path, index=False)
+        return True
+    except Exception as e:
+        return fail_step(logs, video, Step.IMU, e)
+
+
+def upload_raw(video, logs):
+    bucket = f"{video.gcp_bucket_name}_raw"
+    success, msg = storage.upload_file_to_gcs(video.local_raw_download_path, video.gcp_raw_location, bucket)
+    if msg:
+        return fail_step(logs, video, Step.UPLOAD_RAW, msg)
+    print(f'Uploading: {video.unique_video_id} to {bucket}/{video.gcp_raw_location}')
+    logs['process_raw_success'].append(f'{video.unique_video_id} to {bucket}/{video.gcp_raw_location}')
+    return True
+
+
+def zip_metadata(
+    video,
+    processor,
+    logs,
+    *,
+    min_zip_kb: float = 3.0,
+    max_attempts: int = 3,
+    add_imu_suffix: bool = False,
+):
+    last_zip_kb = None
+
+    for attempt in range(1, max_attempts + 1):
+        # On retry: re-run meta extraction to regenerate metadata folder
+        if attempt > 1:
+            meta_dir = os.path.join(video.local_processed_folder, f"{video.gcp_file_name}_metadata")
             try:
-                result = subprocess.run(cmd, shell=True, check=True, capture_output=True, timeout=120)
-                try:
-                    output_text = result.stdout.decode('utf-8')
-                except UnicodeDecodeError:
-                    output_text = result.stdout.decode('utf-8', 'replace')  # Replace or ignore invalid characters
-                print(output_text)
-                if 'error' in output_text.lower():
-                    logging.error(f'Error executing command: {cmd}\nError message: {output_text}')
-                    extract_success = False
-                    break
-            # something is wrong with the video file
-            except subprocess.CalledProcessError as e:
-                # print(f"Inside extract_meta: {e.stderr}")
-                logging.error(f'Error executing command: {cmd}\nError message: {e.stderr}')
-                # signal failure if any of the meta data extraction fails
-                extract_success = False
-                break
-            except subprocess.TimeoutExpired:
-                logging.error(f"Command timed out: {cmd}")
-                extract_success = False
-                break
-            except Exception as e:
-                logging.error(f'Unexpected error while executing {cmd}: {traceback.format_exc()}')
-                extract_success = False
-                break
-        # no need to compress if meta data extraction fails (video corrupted)
-        if extract_success:
-            return self.get_highlight_and_device_id(video_path, output_path)
-        else:
-            return extract_success
-        
+                shutil.rmtree(meta_dir)
+            except Exception:
+                pass
+            os.makedirs(meta_dir, exist_ok=True)
 
-    def get_highlight_and_device_id(self, video_path, output_folder):
-        def save_info(all_info, output_path, info_type):
-            assert info_type in ['highlights', 'device_id'], \
-                'info_type needs to be either device_id or highlights'
-            str2insert = ""
-            str2insert += fname + "\n"
-            if info_type == 'highlights':
-                for i, highl in enumerate(all_info):
-                    str2insert += "(" + str(i + 1) + "): "
-                    str2insert += sec2dtime(highl) + "\n"
-            elif info_type == 'device_id':
-                str2insert += all_info
-            str2insert += "\n"
-            with open(output_path, "w") as f:
-                f.write(str2insert)
+            _, meta_err = processor.extract_meta()
+            if meta_err:
+                video.status = VideoStatus.META_FAIL
+                fail_step(logs, video, Step.META, meta_err)
+                return True  # stop later, but keep Airtable update
 
-        fname = os.path.basename(video_path).split('.')[0]
-        highlights = examine_mp4(video_path)
-        highlights.sort()
-        highlight_path = os.path.join(output_folder, f'GP-Highlights_{fname}.txt')
-        print(video_path)
-        print(highlight_path)
-        save_info(highlights, highlight_path, 'highlights')
-        device_id = device.examine_mp4(video_path)
-        device_id_path = os.path.join(output_folder, f'GP-Device_name_{fname}.txt')
-        save_info(device_id, device_id_path, 'device_id')
-        print(device_id_path)
-        return self.compress_vid(video_path, output_folder)
-
-
-    def compress_vid(self, video_path, output_folder):
-        fname = os.path.basename(video_path)
-        if fname.endswith(('.MP4', '.mp4', '.avi')):
-            output_name = fname if fname.lower().endswith('.mp4') else fname.replace('.avi', '.MP4')
-            output_path = os.path.join(output_folder, output_name)            
-            cmd = f'ffmpeg -i "{video_path}" -vcodec h264_nvenc -cq 30 "{output_path}"'    # this is what we use across all videos
-            # cmd = f'ffmpeg -i "{video_path}" -vcodec libx264 -crf 28 "{output_path}"'
-
-        elif fname.endswith('.LRV'):
-            output_name = fname.replace('.LRV', '.MP4')
-            output_path = os.path.join(output_folder, output_name)
-            cmd = f'ffmpeg -i "{video_path}" -vcodec libx264 -crf 28 "{output_path}"'
-        else:
-            raise(f"Unsupported file format: {fname}")            
+        # (Re)zip metadata
+        video.zipped_file_path, zip_err = processor.zip_files()
+        if zip_err:
+            return fail_step(logs, video, Step.ZIP, zip_err)
 
         try:
-            subprocess.run(cmd, shell=True, check=True, text=True)
-        except subprocess.CalledProcessError as e:
-            logging.error(f'Error executing command: {cmd}\nError message: {e.stderr}')
-            return False  # signal failure if any of the meta data extraction fails
-        return fname  # signal success if compression succeeds
+            last_zip_kb = os.path.getsize(video.zipped_file_path) / 1024.0
+        except Exception:
+            last_zip_kb = 0.0
+
+        if last_zip_kb >= min_zip_kb:
+            break  # good zip
+
+        # Too small => retry if we still can
+        if attempt < max_attempts:
+            try:
+                os.remove(video.zipped_file_path)
+            except Exception:
+                pass
+            continue
+
+        # Still too small after max attempts => fatal META_FAIL, no upload
+        video.status = VideoStatus.META_FAIL
+        fail_step(
+            logs,
+            video,
+            Step.ZIP,
+            f"Metadata zip too small: {last_zip_kb:.3f} KB (< {min_zip_kb} KB) after {max_attempts} attempts."
+        )
+        return True
+
+    # Optionally rename zip if IMU succeeded
+    if add_imu_suffix:
+        base, ext = os.path.splitext(video.zipped_file_path)
+        if not base.endswith("_imu"):
+            renamed_path = f"{base}_imu{ext}"
+            try:
+                os.rename(video.zipped_file_path, renamed_path)
+                video.zipped_file_path = renamed_path
+            except Exception as e:
+                return fail_step(logs, video, Step.ZIP, f"Failed to rename zip with _imu suffix: {e}")
+
+    # Normal path: upload zip
+    video.gcp_storage_zip_location = f"{video.subject_id}/{os.path.basename(video.zipped_file_path)}"
+    _, zip_upload_msg = storage.upload_file_to_gcs(
+        video.zipped_file_path,
+        video.gcp_storage_zip_location,
+        f"{video.gcp_bucket_name}_storage"
+    )
+    if zip_upload_msg:
+        return fail_step(logs, video, Step.UPLOAD_ZIP, zip_upload_msg)
+
+    return True
 
 
-    # download tracking sheet as dataframe
-    def sheet_to_dataframe(self):
-        # THESE ARE THE HEADERS THAT ARE REQUIRED IN THE SHEET for the pipeline
-        self.required_headers = {'Processed_date', 'Status', 'Duration'}
-        self.spreadsheet_id = '1mAti9dBNUqgNQQIIsnPb5Hu59ovKCUh9LSYOcQvzt2U'  # session tracking sheet
-        # which sheet to download
-        if self.args.bv_type == 'luna':
-            self.range_name = 'Luna_Round_2_Ongoing'
-        elif self.args.bv_type == 'main':
-            self.range_name = 'Ongoing_data_collection'
-        elif self.args.bv_type == 'bing':
-            self.range_name = 'Bing'
-                
-        # get the sheet info 
-        sheet = self.sheets_service.spreadsheets().values().get(
-            spreadsheetId=self.spreadsheet_id, range=self.range_name
-            ).execute()
-        values = sheet.get('values', [])
-        header = values[0] if values else []
-        # pad the values with empty strings to make sure all rows have the same length        
-        padded_values = [row + [''] * (len(header) - len(row)) for row in values[1:]]        
-        # Create a pandas DataFrame from the padded values
-        df = pd.DataFrame(padded_values, columns=header)
-        assert self.required_headers.issubset(df.columns), \
-            f"Missing required headers: {self.required_headers - set(df.columns)}. Please add them to the sheet."
-        return df
-    
+def compress_rotate_blackout(video: Video, processor, logs):
+    video.compress_video_path, compress_err = processor.compress_vid()
+    if compress_err:
+        video.status = VideoStatus.COMPRESS_FAIL
+        return fail_step(logs, video, Step.COMPRESS, compress_err)
 
-    def get_week_date_time_from_sheet(self, df, subject_id, video_id, week):
-        # Filter the DataFrame for rows matching the subject_id and video_id
-        filtered_df = df[(df['subject_id'] == subject_id) & (df['video_id'] == video_id) & (df['Week'] == week)]
-        # Assuming there's only one match, or you want the first match
-        if not filtered_df.empty:
-            date = filtered_df.iloc[0]['Date']
-            date = week.split('-')[0] if date == 'NA' else date            
-            time = filtered_df.iloc[0]['Time']
-            return date, time
-        else:
-            return None, None  # or raise an exception if you prefer
+    video.compress_video_path, rotate_err = processor.rotate_video()
+    if rotate_err:
+        video.status = VideoStatus.ROTATE_FAIL
+        return fail_step(logs, video, Step.ROTATE, rotate_err)
+    if video.blackout_region:
+        video.compress_video_path, blackout_err = processor.blackout_video()
+        if blackout_err:
+            video.status = VideoStatus.BLACKOUT_FAIL
+            return fail_step(logs, video, Step.BLACKOUT, blackout_err)
+
+    return True
 
 
-    def download_file(self, service, file_id, file_path):        
-        directory, filename = os.path.split(file_path)
-        video_id, extension = os.path.splitext(filename)
-        fname_infos = os.path.dirname(os.path.relpath(file_path, self.args.video_root)).split('/')
-        bv_main_folder = fname_infos[0]  # BabyView_Main, BabyView_Bing, BabyView_Play
-        subject_id = fname_infos[1]
-        record_period = fname_infos[-1]
-        if 'By_Date' in fname_infos:
-            fname_infos.remove('By_Date')
-        if 'By Date' in fname_infos:
-            fname_infos.remove('By Date')
+def compressed_upload(video: Video, logs):
+    video.gcp_storage_video_location = f"{video.subject_id}/{os.path.basename(video.compress_video_path)}"
+    _, compress_upload_msg = storage.upload_file_to_gcs(
+        video.compress_video_path,
+        video.gcp_storage_video_location,
+        f"{video.gcp_bucket_name}_storage")
+    if compress_upload_msg:
+        return fail_step(logs, video, Step.UPLOAD_COMPRESS, compress_upload_msg)
 
-        if self.args.bv_type in ['main', 'luna']:
-            
-            # with '/' to match the format in the sheet
-            week = record_period.replace('.', '/')        
-            date, time = self.get_week_date_time_from_sheet(self.datetime_tracking, subject_id, video_id, week)        
-            # add created date to file name
-            if date is None or time is None:
-                create_date = service.files().get(
-                    fileId=file_id,
-                    fields='createdTime',
-                    supportsAllDrives=True
-                ).execute()['createdTime']
-                date_obj = datetime.strptime(create_date, "%Y-%m-%dT%H:%M:%S.%fZ")
-                if date is None:
-                    date = date_obj.strftime('%Y-%m-%d')
-                if time is None:
-                    time = date_obj.strftime('%H:%M:%S')
+    logs['storage_upload_success'].append(f'{video.unique_video_id} uploaded to {video.gcp_storage_video_location}')
+    return True
 
-            datetime_str = f'{date}-{time}'.replace(' ', '').replace('/', '.')        
-            file_name = f'{subject_id}_{video_id}_{record_period}_{datetime_str}{extension}'
-        else:
-            file_name = f'{subject_id}_{video_id}_{record_period}{extension}'
-            
-        os.makedirs(directory, exist_ok=True)
-        raw_path = os.path.join(directory, file_name).replace(' ', '_')
-        # folder to store processed video & meta data
-        processed_folder = os.path.join(self.args.output_folder, bv_main_folder, subject_id, video_id)
-        if os.path.exists(raw_path):
-            print(f"File already exists: {raw_path}")
-            return raw_path, processed_folder
-        
-        print(f"Downloading to: {file_path}")
-        if not os.path.exists(processed_folder):
-            os.makedirs(processed_folder, exist_ok=True)
-        request = service.files().get_media(fileId=file_id)
-        fh = io.FileIO(raw_path, 'wb')
-        downloader = MediaIoBaseDownload(fh, request)
-        done = False
-        while not done:
-            status, done = downloader.next_chunk()
-            print(f"Download {int(status.progress() * 100)}% complete.")
-        self.total_video_count += 1
-        return raw_path, processed_folder
-    
 
-    def clear_directory_contents(self, dir_path):
-        """ Remove everything inside a directory path """
-        if not os.path.isdir(dir_path):
-            print("The specified directory does not exist.")
+def process_single_video(video: Video, logs, download_source: str = "google_drive"):
+    processor = FileProcessor(video)
+    imu_failed = False
+    try:
+        # Step 1:
+        # If status == delete, delete orig files and mark airtable
+        # If status == reprocess, delete orig files and continue processing
+        if video.status and video.status in [VideoStatus.TO_BE_DELETED, VideoStatus.TO_BE_REPROCESS]:
+            result = handle_deletion(video, logs)
+
+            if video.status == VideoStatus.TO_BE_DELETED:
+                video.status = VideoStatus.REMOVED
+                return
+
+            if result is False:
+                return
+        # Step 2:
+        # Download the video from Google Drive
+        video.status = None
+        if not download_video(video, processor, logs, download_source=download_source):
             return
 
-        for filename in os.listdir(dir_path):
-            file_path = os.path.join(dir_path, filename)
-            try:
-                if os.path.isfile(file_path) or os.path.islink(file_path):
-                    os.remove(file_path)
+        # Step 3:
+        # Extract meta data from video, upload raw to bucket
+        if not process_metadata(video=video, processor=processor, logs=logs):
+            return
 
-                elif os.path.isdir(file_path):
-                    shutil.rmtree(file_path)
-            except Exception as e:
-                print(f"Failed to delete {file_path}. Reason: {e}")
+        meta_failed = video.status == VideoStatus.META_FAIL
+        if 'luna' in video.gopro_video_id.lower():
+            imu_failed = False
+            video.comment = None
+        else:
+            imu_failed = not process_imu(video, logs)
+        if download_source == "google_drive":
+            if not upload_raw(video, logs):
+                return
+        if meta_failed:
+            return  # ensure stop after raw upload if metadata failed
 
+        # Step 4:
+        # Zip and compress the meta data and vid, upload to storage bucket
+        if 'luna' not in video.gopro_video_id.lower() and not video.gcp_raw_location.lower().endswith('lrv'):
+            if not zip_metadata(video, processor, logs, add_imu_suffix=not imu_failed):
+                return
+            if video.status in [VideoStatus.META_FAIL]:
+                return
 
-    def upload_file_gcp(self, gcp_bucket_name, zip_path, video_path, common_folder):
-        # upload video file
-        gcp_video_gcp_path = video_path.split(common_folder)[-1]        
-        processed_vid_gcp_msg, processed_success = self.storage_client_instance.upload_file_to_gcs(
-            source_file_name=video_path, destination_path=gcp_video_gcp_path, gcp_bucket=gcp_bucket_name
+        if not compress_rotate_blackout(video, processor, logs):
+            return
+
+        if not compressed_upload(video, logs):
+            return
+
+        # Fetch GCS object sizes after uploads
+        video.video_size_mb, video.metadata_size_kb, size_err = storage.get_object_sizes(
+            f"{video.gcp_bucket_name}_storage",
+            video.gcp_storage_video_location,
+            video.gcp_storage_zip_location,
+        )
+        if size_err:
+            logs.setdefault('gcs_size_check_failed', []).append(
+                f"{video.unique_video_id}: {size_err}"
             )
-        self.storage_client_instance.logs['processed_details'].append(processed_vid_gcp_msg)
-        if processed_success:
-            self.storage_client_instance.logs['processed_success'] += 1
-        else:
-            self.storage_client_instance.logs['processed_failure'] += 1
+            logger.warning("gcs_size_check_failed video_id=%s error=%s", video.unique_video_id, size_err)
 
-        # zip file
-        gcp_zip_gcp_path = zip_path.split(common_folder)[-1]
-        zip_gcp_msg, zip_success = self.storage_client_instance.upload_file_to_gcs(
-            source_file_name=zip_path, destination_path=gcp_zip_gcp_path, gcp_bucket=gcp_bucket_name
+        if not video.status:
+            video.status = VideoStatus.PROCESSED
+
+    except Exception as e:
+        video.status = VideoStatus.UNEXPECTED_FAIL
+        logs['unexpected_error'].append(f'{video.unique_video_id}_{str(e)}')
+        logger.exception("unexpected_error video_id=%s error=%s", video.unique_video_id, e)
+
+    finally:
+        zip_field_value = None
+        if video.status in [VideoStatus.META_FAIL, VideoStatus.ZIP_FAIL]:
+            zip_field_value = getattr(video, "meta_error_msg", None) or getattr(video, "last_error_msg", None)
+        else:
+            zip_field_value = (
+                f'{video.gcp_bucket_name}_storage/{video.gcp_storage_zip_location}'
+                if video.gcp_storage_zip_location else None
             )
-        self.storage_client_instance.logs['zip_details'].append(zip_gcp_msg)
-        if zip_success:
-            self.storage_client_instance.logs['zip_success'] += 1
-        else:
-            self.storage_client_instance.logs['zip_failure'] += 1
+
+        video.pipeline_run_date = datetime.now().strftime("%Y-%m-%d")
+        airtable_services.update_video_table_single_video(video.unique_video_id, {
+            # 'hilight_locations': str(video.highlight) if video.highlight else None,
+            'pipeline_run_date': video.pipeline_run_date,
+            'status': video.status,
+            'duration_sec': video.duration if video.duration else None,
+            'gcp_raw_location': f'{video.gcp_bucket_name}_raw/{video.gcp_raw_location}' if video.local_raw_download_path else None,
+            'gcp_storage_video_location': f'{video.gcp_bucket_name}_storage/{video.gcp_storage_video_location}' if video.gcp_storage_video_location else None,
+            'gcp_storage_zip_location': zip_field_value,
+            'video_size_mb': getattr(video, "video_size_mb", None),
+            'metadata_size_kb': getattr(video, "metadata_size_kb", None),
+            'comment': getattr(video, "last_error_msg", None) if imu_failed else getattr(video, "comment", None),
+        })
+        if video.google_drive_file_id:
+            processor.clear_directory_contents_raw_storage()
 
 
-    def build_google_drive_service(self, service_type='drive'):
-        creds = None
-        token_path = os.path.join(self.args.cred_folder, 'token.json')
-        if os.path.exists(token_path):
-            creds = Credentials.from_authorized_user_file(token_path, self.SCOPES)
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                cred_path = os.path.join(self.args.cred_folder, 'credentials.json')
-                flow = InstalledAppFlow.from_client_secrets_file(cred_path, self.SCOPES)
-                creds = flow.run_local_server(port=self.args.port)
-            with open(token_path, 'w') as token:
-                token.write(creds.to_json())
-        version = 'v3' if service_type == 'drive' else 'v4'
-        return build(service_type, version, credentials=creds)
-        
+def process_videos(video_tracking_data, download_source: str = "google_drive"):
+    from collections import defaultdict
+    logs = defaultdict(list)
 
+    storage.check_gcs_buckets()
 
-    def download_videos_from_drive(self):
-        downloading_file_info  = self.get_downloading_file_paths()
-        if self.args.bv_type == 'bing':            
-            entry_point_folder_name = "BabyView_Bing"
-        elif self.args.bv_type in ['main', 'luna']:            
-            entry_point_folder_name = "BabyView_Main"
-                
-        # create raw bucket
-        raw_bucket = f'{entry_point_folder_name}_raw'.lower()       
-        if raw_bucket not in self.gcs_buckets:
-            logging.info(f"Creating {raw_bucket} bucket...")
-            self.storage_client_instance.create_gcs_buckets(raw_bucket)        
+    if video_tracking_data.empty:
+        logs['airtable'].append("No_Record_From_Airtable.")
+        return dict(logs)
 
-        for video_info in downloading_file_info:
-            file_id = video_info['file_id']
-            download_path = video_info['file_path']
-            
-            # Step 1. Download the raw video file if file id is available
-            if file_id:
-                download_path = os.path.join(self.args.video_root, entry_point_folder_name, download_path)
-                download_folder = os.path.dirname(download_path).replace('By Date', 'By_Date')
-                os.makedirs(download_folder, exist_ok=True)
-                try:
-                    raw_path, processed_folder = self.download_file(self.drive_service, file_id, download_path)            
-                except Exception as e:                
-                    logging.info(f"Failed to download {file_id}...{e}")
-                    video_info['Status'] = 'Download failed'
-                    continue
-            else:
-                logging.info(f"File id not available for {file_id}")
-                video_info['Status'] = 'Not found'
-                raw_path = None
+    logs['airtable'].append(f"{len(video_tracking_data)}_Loaded")
+    if download_source == "google_drive":
+        downloading_file_info, log_message = get_downloader().get_file_paths_from_google_drive(
+            video_info_from_tracking=video_tracking_data
+        )
+        logs['loading_download_info_error'].append(log_message)
+    else:
+        downloading_file_info = [
+            Video(video_info=row.to_dict()) for _, row in video_tracking_data.iterrows()
+        ]
+        logs['loading_download_info_error'].append([])
+    for video in downloading_file_info:
+        try:
+            process_single_video(video, logs, download_source=download_source)
+        except Exception as e:
+            logs['general_error'].append({f'{video.unique_video_id}': str(e)})
 
-            # Step 2. Upload raw video file to GCS if download is successful. Next step is contingent 
-            # on download success
-            if raw_path:
-                gcp_storage_raw_path = raw_path.split(f"{entry_point_folder_name}/")[1]                                
-                raw_upload_msg, raw_upload_success = self.storage_client_instance.upload_file_to_gcs(
-                    source_file_name=raw_path,
-                    destination_path=gcp_storage_raw_path,
-                    gcp_bucket=raw_bucket
-                )                            
-                self.storage_client_instance.logs['raw_details'].append(raw_upload_msg)
-                if raw_upload_success:
-                    self.storage_client_instance.logs['raw_success'] += 1
-                else:
-                    self.storage_client_instance.logs['raw_failure'] += 1                    
-                self.storage_client_instance.logs['raw_details'].append(raw_upload_msg)
-            
-                # Step 3. Extract meta from the raw video file and compress it, only process if raw upload is successful
-                # process meta data
-                if raw_upload_success:                
-                    os.makedirs(processed_folder, exist_ok=True)
-                    # LUNA avi videos do not have meta data, will just compress, but GoPro videos have metadata
-                    if (self.args.bv_type == 'luna' and 'LUNA' in raw_path) or raw_path.endswith('LRV'):
-                        video_ext = '.avi'
-                        video_fname = self.compress_vid(raw_path, processed_folder)
-                    else:
-                        video_ext = '.MP4'
-                        try:
-                            video_fname = self.extract_meta(raw_path, processed_folder)
-                            if not video_fname:
-                                video_info['Status'] = 'Meta extraction failed'
-                        except Exception as e:
-                            logging.info(f">>>>>>>>>>>>>>>>>>>>>> {raw_path} failed to process..")
-                            logging.info("Exception is", e)
-                            video_fname = False                            
-                            print(f"Process success {video_fname}...")
-                            video_info['Status'] = 'Meta extraction failed'
+    log_name = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_logs.json"
+    storage.upload_dict_to_gcs(dict(logs), "hs-babyview-logs", log_name)
+    logger.info("logs_uploaded bucket=hs-babyview-logs object=%s", log_name)
 
-                    # Step 4. Create a zip file of the processed folder and upload it and the video to GCS            
-                    storage_bucket = f'{entry_point_folder_name}_storage'.lower()
-                    if storage_bucket not in self.gcs_buckets:
-                        logging.info(f"Creating {storage_bucket} bucket...")
-                        self.storage_client_instance.create_gcs_buckets(storage_bucket)
-
-                    try:
-                        if video_fname:                
-                            zip_output_path = os.path.join(os.path.dirname(processed_folder), video_fname)
-                            zip_output_path = zip_output_path.replace(video_ext, '')
-                            zip_path, video_path = self.zip_files(processed_folder, zip_output_path)
-                            print(f"Zipped {zip_path}...vid {video_path}...")
-                            # upload the zip and mp4 to GCS
-                            common_folder = f"{entry_point_folder_name}/"                            
-                            self.upload_file_gcp(
-                                gcp_bucket_name=storage_bucket, zip_path=zip_path, 
-                                video_path=video_path, common_folder=common_folder
-                                )
-                            video_info['Status'] = 'Uploaded'
-                            # get video duration
-                            video = VideoFileClip(video_path)
-                            duration = video.duration
-                            video_info['Duration'] = duration
-                            video.close()
-                            # remove the downloaded and processed files to save local storage
-                            remove_processed_path = os.path.commonpath([zip_path, video_path])
-                            print(f"Finished processing, removing {remove_processed_path}")
-                            self.clear_directory_contents(remove_processed_path)
-                            remove_raw_path = remove_processed_path.replace('processed', 'raw')
-                            print(f"Finished processing, removing {remove_raw_path}")
-                            self.clear_directory_contents(remove_raw_path)
-                            shutil.rmtree(remove_raw_path)
-                    except Exception as e:
-                        print(f">>>>>>>>>>>>>>>>>>>>>> {video_fname} failed to upload..")
-                        video_info['Status'] = 'Processed Upload failed'
-                        print("Exception is", e)
-
-                else:
-                    video_info['Status'] = 'Raw upload failed'
-                
-                # Step 5. Upload logs to GCS
-                log_name = f"hs-babyview-upload-log-{datetime.now().strftime('%Y%m%d%H%M%S')}.json"
-                self.storage_client_instance.upload_dict_to_gcs(
-                    data=self.storage_client_instance.logs, bucket_name="hs-babyview-logs", filename=log_name
-                    )
-                
-            # Step 6. Update the video info with the processed date and duration on the tracking sheet
-            video_info['Processed_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')                
-            row_idx = video_info['idx']
-            columns = self.datetime_tracking.columns
-            columns_str_idx_dict = {col: ascii_uppercase[idx] for idx, col in enumerate(columns)}
-            start_str_idx = columns_str_idx_dict['Processed_date']
-            end_str_idx = columns_str_idx_dict['Duration']
-            range_name = f'{self.range_name}!{start_str_idx}{row_idx}:{end_str_idx}{row_idx}'
-            body = {'values': [[video_info[col] for col in columns if col in self.required_headers]]}
-            self.sheets_service.spreadsheets().values().update(
-                spreadsheetId=self.spreadsheet_id, range=range_name, 
-                valueInputOption='RAW', body=body
-                ).execute()
-    
-
-    def save_to_csv(self):
-        csv_path = self.args.csv_path
-        # remove video_root prefix from file paths
-        cleaned_paths = [(path.replace(self.args.video_root, ''), duration) for path, duration in
-                         self.video_durations.items()]
-        new_data = pd.DataFrame(cleaned_paths, columns=['File Path', 'Duration (s)'])
-        # if CSV exists, append new data to it
-        if os.path.exists(csv_path):
-            existing_data = pd.read_csv(csv_path)
-            combined_data = pd.concat([existing_data, new_data], ignore_index=True)
-            combined_data.drop_duplicates(subset='File Path', keep='last', inplace=True)
-            combined_data.to_csv(csv_path, index=False)
-        else:
-            new_data.to_csv(csv_path, index=False)
-
-
-    def seconds_to_hms(self, seconds):
-        """ Convert seconds to hh:mm:ss format
-        """
-        hours = seconds // 3600
-        seconds %= 3600
-        minutes = seconds // 60
-        seconds %= 60
-        return hours, minutes, seconds
-    
-
-    def print_video_stats(self):
-        total_duration = sum(self.video_durations.values())
-        total_videos = len(self.video_durations)
-        hours, minutes, secs = self.seconds_to_hms(total_duration)
-        print(f"Total Number of Videos: {total_videos}")
-        print(f"Total Duration of Videos: {hours} hours {minutes} mins {secs:.2f} secs")
-
-    def zip_files(self, zip_folder, zip_out_name):
-        zipfile_path = f"{zip_out_name}.zip"
-        print(f"Archive {zip_folder} to {zipfile_path}")
-        shutil.make_archive(zip_out_name, 'zip', root_dir=zip_folder)
-        video_path = os.path.join(zip_folder, [f for f in os.listdir(zip_folder) if f.endswith(".MP4")][0])
-        return zipfile_path, video_path    
+    return dict(logs)
 
 
 def main():
-    video_root = "/data2/ziyxiang/bv_tmp/raw/"
-    output_folder = "/data2/ziyxiang/bv_tmp/processed/"
-    # cred_folder = "/ccn2/u/ziyxiang/cloud_credentials/babyview"    
-    cred_folder = "creds"
     parser = argparse.ArgumentParser(description="Download videos from cloud services")
-    parser.add_argument('--bv_type', type=str, default='main', choices=['main', 'bing', 'luna'],
-                        help='Babyview Main or Bing')
-    # @TODO: temporarily to run multiple processes for each subject
-    parser.add_argument('--subject_id', type=str, default='all', help='Subject ID to download videos for')
-    parser.add_argument('--video_root', type=str, default=video_root)
-    parser.add_argument('--csv_path', type=str, default='uploaded_videos.csv')
-    parser.add_argument('--cred_folder', type=str, default=cred_folder)
-    parser.add_argument('--output_folder', type=str, default=output_folder)
-    parser.add_argument('--error_log', type=str, default='error_log.txt')    
+    filter_group = parser.add_mutually_exclusive_group()
+    filter_group.add_argument(
+        '--pipeline_run_date',
+        nargs='?',
+        const='__NULL__',
+        default=None,
+        help="YYYY-MM-DD or provide no value to select NULL pipeline_run_date",
+    )
+    filter_group.add_argument('--status', nargs='+', default=None, help="One or more statuses")
+    filter_group.add_argument(
+        '--dataset',
+        nargs='+',
+        default=None,
+        choices=['BV-main', 'Luna', 'Bing'],
+        help="One or more datasets",
+    )
+    filter_group.add_argument('--subject_id', nargs='+', default=None, help="One or more subject IDs")
+    filter_group.add_argument('--unique_video_id', nargs='+', default=None, help="One or more video record IDs")
+    filter_group.add_argument('--status_test', type=str, default=None, help="Exact status_test value")
+    filter_group.add_argument('--release', type=str, default=None, help="Release name from Releases table")
+    parser.add_argument('--dry_run', action='store_true', help="Only load Airtable and print count")
+    parser.add_argument('--limit', type=int, default=None, help="Optional max number of videos to process")
+    parser.add_argument(
+        '--download_source',
+        type=str,
+        choices=['google_drive', 'gcp_raw'],
+        default='google_drive',
+        help="Where to download source videos from for processing.",
+    )
+    parser.add_argument(
+        '--no_base_filter',
+        action='store_true',
+        help="Bypass base Airtable filters (status/logging_date)",
+    )
+
     args = parser.parse_args()
-    downloader = GoogleDriveDownloader(args)
-    downloader.download_videos_from_drive()
+
+    process_filter_key = None
+    process_filter_value = None
+
+    if args.release:
+        process_filter_key = "release"
+        process_filter_value = args.release
+    elif args.subject_id:
+        process_filter_key = "subject_id"
+        process_filter_value = args.subject_id
+    elif args.unique_video_id:
+        process_filter_key = "unique_video_id"
+        process_filter_value = args.unique_video_id
+    elif args.status:
+        process_filter_key = "status"
+        process_filter_value = args.status
+    elif args.dataset:
+        process_filter_key = "dataset"
+        process_filter_value = args.dataset
+    elif args.status_test:
+        process_filter_key = "status_test"
+        process_filter_value = args.status_test
+    elif args.pipeline_run_date is not None:
+        process_filter_key = "pipeline_run_date"
+        process_filter_value = (
+            None if args.pipeline_run_date == "__NULL__" else args.pipeline_run_date
+        )
+
+    include_base_filters = False if process_filter_key == "status_test" else (not args.no_base_filter)
+    exclude_meta_fail = process_filter_key not in ["status_test", "unique_video_id"]
+
+    if process_filter_key == "release" and process_filter_value:
+        release_name = process_filter_value[0] if isinstance(process_filter_value, list) else process_filter_value
+        video_ids = airtable_services.get_video_ids_for_a_release_set(release_name)
+        video_tracking_data = airtable_services.get_video_info_by_record_ids(
+            video_ids,
+            limit=args.limit,
+            include_base_filters=include_base_filters,
+            exclude_meta_fail=exclude_meta_fail,
+        )
+    elif process_filter_key == "subject_id" and process_filter_value:
+        subject_ids = process_filter_value if isinstance(process_filter_value, list) else [process_filter_value]
+        video_tracking_data = airtable_services.get_video_info_for_subject_ids(
+            subject_ids,
+            limit=args.limit,
+            include_base_filters=include_base_filters,
+            exclude_meta_fail=exclude_meta_fail,
+        )
+    else:
+        video_tracking_data = airtable_services.get_video_info_from_video_table(
+            filter_key=process_filter_key,
+            filter_value=process_filter_value,
+            limit=args.limit,
+            include_base_filters=include_base_filters,
+            exclude_meta_fail=exclude_meta_fail,
+        )
+    logger.info("airtable_loaded count=%s", len(video_tracking_data))
+    if args.dry_run:
+        print(f"[DRY_RUN] Loaded {len(video_tracking_data)} videos from Airtable.")
+        return
+    process_videos(video_tracking_data=video_tracking_data, download_source=args.download_source)
+
 
 
 if __name__ == '__main__':

@@ -6,7 +6,16 @@ from tqdm import tqdm
 import os
 import logging
 import json
+import pandas as pd
 from datetime import datetime
+
+
+class SafeJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        try:
+            return super().default(obj)
+        except TypeError:
+            return str(obj)  # fallback to string
 
 
 class ProgressBytesIO(BytesIO):
@@ -29,21 +38,44 @@ class ProgressBytesIO(BytesIO):
         return self._bytes_io.tell()
 
 
+class ProgressWriteFile:
+    def __init__(self, file_obj, progress_bar):
+        self._file_obj = file_obj
+        self._progress_bar = progress_bar
+
+    def write(self, data):
+        written = self._file_obj.write(data)
+        self._progress_bar.update(written)
+        return written
+
+    def flush(self):
+        return self._file_obj.flush()
+
+    def close(self):
+        return self._file_obj.close()
+
+    def tell(self):
+        return self._file_obj.tell()
+
+
 class GCPStorageServices:
-    creds = service_account.Credentials.from_service_account_file(settings.service_account_path)
+    creds = service_account.Credentials.from_service_account_file(settings.gcp_service_account_path)
     client = storage.Client(credentials=creds)
 
     def __init__(self):
+        self.gcs_buckets = self.list_gcs_buckets()
         self.logs = {'raw_success': 0,
                      'raw_failure': 0,
                      'processed_success': 0,
                      'processed_failure': 0,
                      'zip_success': 0,
                      'zip_failure': 0,
-                     'raw_details': [],
-                     'processed_details': [],
-                     'zip_details': [],
-                     'bucket_create_failure': []}
+                     'raw_details': {},
+                     'processed_details': {},
+                     'zip_details': {},
+                     'file_deletion_details': {},
+                     'bucket_create_failure': {},
+                     }
 
     def upload_file_to_gcs(self, source_file_name, destination_path, gcp_bucket):
         try:
@@ -54,51 +86,65 @@ class GCPStorageServices:
 
             # Wrap your BytesIO object with ProgressBytesIO
             file_size = os.path.getsize(source_file_name)
-            pbar = tqdm(total=file_size, unit='B', unit_scale=True, desc='Uploading')
+            pbar = tqdm(total=file_size, unit='B', unit_scale=True, desc=f'Uploading {source_file_name}')
 
             with open(source_file_name, "rb") as fh:
                 progress_io = ProgressBytesIO(fh, pbar)
-                blob.upload_from_file(progress_io, num_retries=3, timeout=600)
+                blob.upload_from_file(progress_io, timeout=600)
 
-            pbar.close()            
-            msg = f"{source_file_name} Upload Completed To {gcp_bucket}/{destination_path}."
+            pbar.close()
+            msg = None
             success = True
-        except Exception as e:                        
-            msg = f"{source_file_name} Upload Failed To {gcp_bucket}/{destination_path}. {e}"
+        except Exception as e:
+            msg = e
             success = False
 
-        print(msg)
-        return msg, success
+        return success, msg
+
+    def delete_blobs_with_substring(self, bucket_name, file_substring):
+        try:
+            # Get the bucket containing the blob
+            bucket = self.client.bucket(bucket_name)
+
+            # List all blobs in the bucket
+            blobs = bucket.list_blobs()
+
+            # Collect blobs that match the substring
+            if isinstance(file_substring, str):
+                matched_blobs = [blob for blob in blobs if file_substring in blob.name]
+            elif isinstance(file_substring, list):
+                matched_blobs = [blob for blob in blobs if any(sub in blob.name for sub in file_substring)]
+            else:
+                return False, f"{file_substring}_not_str_or_list"
+
+            if not matched_blobs:
+                return True, None
+
+            # Delete matched blobs and collect their names
+            deleted_blob_names = []
+            for blob in matched_blobs:
+                deleted_blob_names.append(blob.name)
+                blob.delete()
+
+            return True, f"{deleted_blob_names}_deleted_from_{bucket_name}."
+        except Exception as e:
+            return False, f"{file_substring}_delete_from_{bucket_name}_failed_{e}"
 
     def upload_dict_to_gcs(self, data: dict, bucket_name, filename):
         try:
-            # Reference the specified bucket
             bucket = self.client.bucket(bucket_name)
 
-            # Convert the dictionary to JSON
-            json_data = json.dumps(data)
+            # Safer serialization
+            json_data = json.dumps(data, cls=SafeJSONEncoder)
 
-            # Create a blob object in the specified bucket
             blob = bucket.blob(filename)
-
-            # Upload the JSON data
             blob.upload_from_string(json_data, content_type='application/json')
             msg = f"{filename} has been saved to {bucket_name}."
         except Exception as e:
-            msg = f"{filename} failed to be saved to {bucket_name}."
+            msg = f"{filename} failed to be saved to {bucket_name}. Error: {e}"
 
         print(msg)
         return msg
-
-
-    @staticmethod
-    def read_in_chunks(file_object, chunk_size=1024):
-        """Lazy function to read a file piece by piece."""
-        while True:
-            data = file_object.read(chunk_size)
-            if not data:
-                break
-            yield data
 
     def create_gcs_buckets(self, bucket_name, location='US'):
         try:
@@ -114,6 +160,25 @@ class GCPStorageServices:
         except Exception as e:
             msg = f"Failed to create bucket {bucket_name}. Reason: {e}"
             self.logs['bucket_create_failure'].append(msg)
+
+    def check_gcs_buckets(self):
+        # create raw and storage bucket if not exist.
+        for folder_name in settings.google_drive_entry_point_folder_names:
+            storage_bucket = f'{folder_name}_storage'.lower()
+            raw_bucket = f'{folder_name}_raw'.lower()
+            # black_out_bucket = f'{folder_name}_blackout'.lower()
+
+            if raw_bucket not in self.gcs_buckets:
+                logging.info(f"Creating {raw_bucket} bucket...")
+                self.create_gcs_buckets(raw_bucket)
+
+            if storage_bucket not in self.gcs_buckets:
+                logging.info(f"Creating {storage_bucket} bucket...")
+                self.create_gcs_buckets(storage_bucket)
+
+            # if black_out_bucket not in self.gcs_buckets:
+            #     logging.info(f"Creating {black_out_bucket} bucket...")
+            #     self.create_gcs_buckets(black_out_bucket)
 
     def list_gcs_buckets(self):
         # List all buckets
@@ -137,3 +202,83 @@ class GCPStorageServices:
             print("Error in read_all_names_from_gcs_bucket bucket '{}': {}".format(bucket_name, e))
 
         return file_names
+
+    def move_matching_files(self, source_bucket_name, target_bucket_name, file_uniq_id=None):
+        source_bucket = self.client.bucket(source_bucket_name)
+        target_bucket = self.client.bucket(target_bucket_name)
+
+        if file_uniq_id:
+            msg = ''
+            try:
+                blobs = source_bucket.list_blobs()  # Get all objects in the source bucket
+                for blob in blobs:
+                    # Check if the blob name contains the specified substring
+                    if file_uniq_id in blob.name:
+                        # Copy the blob to the destination bucket
+                        new_blob = source_bucket.copy_blob(blob, target_bucket, blob.name)
+                        # Delete the original blob from the source bucket
+                        blob.delete()
+                        msg = msg + f"Moved {blob.name} from {source_bucket} to {target_bucket}. "
+                if msg:
+                    success = True
+                else:
+                    msg = f"No such file contains {file_uniq_id}"
+                    success = False
+            except Exception as e:
+                msg = f"Failed to move file {file_uniq_id} from {source_bucket} to {target_bucket}. Error: {e}."
+                success = False
+            return success, msg
+
+    def download_file_from_gcs(self, gcp_bucket: str, blob_path: str, local_path: str):
+        """
+        Download a blob from GCS to a local file.
+
+        Returns:
+            (success: bool, msg: str | None)
+        """
+        try:
+            bucket = self.client.bucket(gcp_bucket)
+            blob = bucket.blob(blob_path)
+
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            blob.reload()
+            total_size = blob.size or 0
+            pbar = tqdm(
+                total=total_size if total_size > 0 else None,
+                unit='B',
+                unit_scale=True,
+                desc=f'Downloading {blob_path}',
+            )
+            try:
+                with open(local_path, "wb") as fh:
+                    progress_fh = ProgressWriteFile(fh, pbar)
+                    blob.download_to_file(progress_fh)
+            finally:
+                pbar.close()
+
+            return True, None
+        except Exception as e:
+            return False, str(e)
+
+    def get_object_sizes(self, gcp_bucket: str, video_blob: str | None, zip_blob: str | None):
+        """
+        Return (video_size_mb, metadata_size_kb, error_msg) for blobs in the given bucket.
+        """
+        try:
+            bucket = self.client.bucket(gcp_bucket)
+            video_size_mb = None
+            metadata_size_kb = None
+
+            if video_blob:
+                blob = bucket.get_blob(video_blob)
+                if blob and blob.size is not None:
+                    video_size_mb = round(blob.size / (1024 * 1024), 3)
+
+            if zip_blob:
+                blob = bucket.get_blob(zip_blob)
+                if blob and blob.size is not None:
+                    metadata_size_kb = round(blob.size / 1024, 3)
+
+            return video_size_mb, metadata_size_kb, None
+        except Exception as e:
+            return None, None, f"GCS_SIZE_CHECK: {e}"
