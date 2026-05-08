@@ -287,6 +287,16 @@ def test_escape_drive_query_value_handles_quotes_and_backslashes():
     assert Video._escape_drive_query_value("plain.MP4") == "plain.MP4"
 
 
+def test_clean_id_strips_whitespace_and_handles_none():
+    # Trailing whitespace in Airtable cells (e.g. 'GX010067 ') was silently
+    # propagating into Drive file-name queries and breaking the lookup.
+    assert Video._clean_id("GX010067 ") == "GX010067"
+    assert Video._clean_id("  S00430003  ") == "S00430003"
+    assert Video._clean_id(None) == ""
+    assert Video._clean_id("") == ""
+    assert Video._clean_id(123) == "123"
+
+
 def test_tier3_does_not_mutate_caller_kwargs():
     original_fields = LIST_KWARGS["fields"]
 

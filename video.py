@@ -44,11 +44,14 @@ class Video:
     comment = None
 
     def __init__(self, video_info: dict):
+        # Strip stray whitespace on identifier fields. Airtable cells occasionally
+        # carry trailing spaces (e.g. 'GX010067 ') that propagate into Drive
+        # queries and folder paths and silently break exact-name lookups.
         self.unique_video_id = video_info.get('unique_video_id', None)
-        self.subject_id = video_info.get('subject_id', '')
-        self.gopro_video_id = str(video_info.get('gopro_video_id', ''))
-        self.dataset = str(video_info.get('dataset', ''))
-        self.recording_week = str(video_info.get('recording_week', None))
+        self.subject_id = self._clean_id(video_info.get('subject_id', ''))
+        self.gopro_video_id = self._clean_id(video_info.get('gopro_video_id', ''))
+        self.dataset = self._clean_id(video_info.get('dataset', ''))
+        self.recording_week = self._clean_id(video_info.get('recording_week', None))
         self.date = video_info.get('date', None)
         self.start_time = video_info.get('start_time', None)
         self.logging_date = video_info.get('logging_date', None)
@@ -169,6 +172,18 @@ class Video:
             msg = f"set_file_id_file_path failed to setup for {self.unique_video_id}. {e}"
             print(msg)
             return msg
+
+    @staticmethod
+    def _clean_id(value) -> str:
+        """Coerce an Airtable identifier-ish field to a stripped string.
+
+        Used for fields that flow into Drive query strings, GCP paths, and
+        derived file names. None becomes '' (not the string 'None') so
+        downstream comparisons and joins behave sensibly.
+        """
+        if value is None:
+            return ''
+        return str(value).strip()
 
     @staticmethod
     def _escape_drive_query_value(value: str) -> str:
