@@ -1,12 +1,14 @@
 import argparse
 import logging
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 import shutil
 from typing import List, Dict, Any
 import settings
 from controllers import GoogleDriveDownloader, FileProcessor, setup_logging
+from slack_notifier import notify_run_finished, notify_run_started
 from imu.utils import process_imu_for_video_dir
 from gcp_storage_services import GCPStorageServices
 from video import Video
@@ -418,15 +420,36 @@ def process_single_video(video: Video, logs, download_source: str = "google_driv
         if video.google_drive_file_id:
             processor.clear_directory_contents_raw_storage()
 
+        logs.setdefault('video_outcomes', []).append({
+            "video_id": video.unique_video_id,
+            "subject_id": video.subject_id,
+            "status": video.status,
+            "message": getattr(video, "last_error_msg", None),
+        })
 
-def process_videos(video_tracking_data, download_source: str = "google_drive"):
+
+def process_videos(
+    video_tracking_data,
+    download_source: str = "google_drive",
+    run_context: dict[str, Any] | None = None,
+):
     from collections import defaultdict
     logs = defaultdict(list)
+    run_started_at = time.time()
+    queried_count = len(video_tracking_data)
 
     storage.check_gcs_buckets()
 
     if video_tracking_data.empty:
         logs['airtable'].append("No_Record_From_Airtable.")
+        notify_run_started(video_tracking_data, run_context=run_context, videos_to_process=0)
+        notify_run_finished(
+            queried_count=0,
+            outcomes=[],
+            logs=dict(logs),
+            run_context=run_context,
+            duration_sec=time.time() - run_started_at,
+        )
         return dict(logs)
 
     logs['airtable'].append(f"{len(video_tracking_data)}_Loaded")
@@ -440,6 +463,13 @@ def process_videos(video_tracking_data, download_source: str = "google_drive"):
             Video(video_info=row.to_dict()) for _, row in video_tracking_data.iterrows()
         ]
         logs['loading_download_info_error'].append([])
+
+    notify_run_started(
+        video_tracking_data,
+        run_context=run_context,
+        videos_to_process=len(downloading_file_info),
+    )
+
     for video in downloading_file_info:
         try:
             process_single_video(video, logs, download_source=download_source)
@@ -449,6 +479,15 @@ def process_videos(video_tracking_data, download_source: str = "google_drive"):
     log_name = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_logs.json"
     storage.upload_dict_to_gcs(dict(logs), "hs-babyview-logs", log_name)
     logger.info("logs_uploaded bucket=hs-babyview-logs object=%s", log_name)
+
+    notify_run_finished(
+        queried_count=queried_count,
+        outcomes=logs.get("video_outcomes", []),
+        logs=dict(logs),
+        run_context=run_context,
+        duration_sec=time.time() - run_started_at,
+        log_object=f"hs-babyview-logs/{log_name}",
+    )
 
     return dict(logs)
 
@@ -548,10 +587,25 @@ def main():
             exclude_meta_fail=exclude_meta_fail,
         )
     logger.info("airtable_loaded count=%s", len(video_tracking_data))
+
+    run_context = {
+        "filter_key": process_filter_key,
+        "filter_value": process_filter_value,
+        "download_source": args.download_source,
+        "limit": args.limit,
+        "dry_run": args.dry_run,
+    }
+
     if args.dry_run:
         print(f"[DRY_RUN] Loaded {len(video_tracking_data)} videos from Airtable.")
+        notify_run_started(video_tracking_data, run_context=run_context)
         return
-    process_videos(video_tracking_data=video_tracking_data, download_source=args.download_source)
+
+    process_videos(
+        video_tracking_data=video_tracking_data,
+        download_source=args.download_source,
+        run_context=run_context,
+    )
 
 
 
