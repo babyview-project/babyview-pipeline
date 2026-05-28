@@ -31,6 +31,9 @@ if [ ! -f "${VENV_ACTIVATE}" ]; then
   exit 1
 fi
 
+# Earlier root runs may have left root-owned dirs under data/bv_tmp; fix before pipeline
+chown -R "${RUN_USER}:${RUN_USER}" "${PROJECT_DIR}/data/bv_tmp" 2>/dev/null || true
+
 # Run as ezhang61 so tmux/logs live under /home/ezhang61 (not root / OS Login home)
 # Attach while running: sudo -u ezhang61 tmux attach -t pipeline
 sudo -u "${RUN_USER}" bash -c "

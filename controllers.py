@@ -650,10 +650,14 @@ class FileProcessor:
         else:
             codec = "-vcodec libx264 -crf 28"
 
-        cmd = f'ffmpeg -i "{self.video.local_raw_download_path}" {codec} "{output_path}"'
+        # -y / -nostdin: never prompt to overwrite (blocks unattended VM runs)
+        cmd = f'ffmpeg -y -nostdin -i "{self.video.local_raw_download_path}" {codec} "{output_path}"'
 
         try:
-            subprocess.run(cmd, shell=True, check=True, text=True)
+            subprocess.run(
+                cmd, shell=True, check=True, stdin=subprocess.DEVNULL,
+                capture_output=True, text=True,
+            )
         except subprocess.CalledProcessError as e:
             msg = f'Error executing command: {cmd}\nError message: {e.stderr}'
             return None, msg
