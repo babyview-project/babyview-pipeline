@@ -2,6 +2,7 @@ import json
 google_api_token_path = "creds/google_api_token.json"
 google_api_credential_path = "creds/credentials.json"
 airtable_access_token_path = "creds/airtable_access_token.json"
+slack_webhook_path = "creds/slack_webhook.json"
 gcp_service_account_path = "creds/hs-babyview-sa.json"
 
 google_drive_entry_point_folder_names = ["BabyView_Main", "BabyView_Bing"]
