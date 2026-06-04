@@ -122,6 +122,17 @@ def handle_deletion(video, logs):
 
 
 def download_video(video, processor, logs, download_source: str = "google_drive"):
+    if download_source == "google_drive":
+        if not video.google_drive_file_id:
+            video.status = VideoStatus.NOT_FOUND
+            drive_name = getattr(video, "google_drive_video_name", None) or "?"
+            return fail_step(
+                logs,
+                video,
+                Step.DOWNLOAD,
+                f"Drive file not found for {video.unique_video_id} ({drive_name})",
+            )
+
     if download_source == "gcp_raw":
         if not video.gcp_raw_location:
             video.status = VideoStatus.NOT_FOUND
@@ -140,6 +151,15 @@ def download_video(video, processor, logs, download_source: str = "google_drive"
             raw_location = raw_location.replace(f"{source_bucket}/", "", 1)
         video.gcp_raw_location = raw_location
 
+    if not video.gcp_raw_location:
+        video.status = VideoStatus.NOT_FOUND
+        return fail_step(
+            logs,
+            video,
+            Step.DOWNLOAD,
+            f"Missing gcp_raw_location for {video.unique_video_id}",
+        )
+
     video.local_raw_download_path, video.local_processed_folder = make_local_directory(video)
 
     if download_source == "gcp_raw":
@@ -149,9 +169,6 @@ def download_video(video, processor, logs, download_source: str = "google_drive"
             str(video.local_raw_download_path),
         )
     else:
-        if not video.google_drive_file_id:
-            video.status = VideoStatus.NOT_FOUND
-            return False
         success, msg = get_downloader().download_file(video.local_raw_download_path, video)
 
     if msg:
