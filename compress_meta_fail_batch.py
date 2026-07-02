@@ -5,9 +5,9 @@ Query: status = error_in_meta_extraction, gcp_storage_video_location empty, gcp_
 
 For each row:
   - download raw from gcp_raw_location
-  - compress with ffmpeg (same as main pipeline)
+  - compress, rotate, and blackout (same steps as main pipeline)
   - upload to the storage bucket
-  - update gcp_storage_video_location, pipeline_run_date, status_test
+  - update gcp_storage_video_location, video_size_mb, pipeline_run_date, status_test
   - leave status unchanged
 
 Usage:
@@ -26,7 +26,7 @@ from datetime import datetime
 import pytz
 from tqdm import tqdm
 
-from controllers import FileProcessor, setup_logging
+from controllers import FileProcessor, setup_logging, compress_rotate_blackout_video
 from gcp_storage_services import GCPStorageServices
 from airtable_services import airtable_services
 from video import Video
@@ -136,13 +136,11 @@ def process_one(row: dict, *, dry_run: bool) -> tuple[bool, str]:
     video.local_processed_folder = processed_dir
 
     storage_bucket = f"{video.gcp_bucket_name}_storage"
-    dest_blob = f"{video.subject_id}/{os.path.splitext(os.path.basename(raw_blob))[0]}.mp4"
-    full_storage_location = f"{storage_bucket}/{dest_blob}"
 
     if dry_run:
         return True, (
-            f"would download gs://{raw_bucket}/{raw_blob} -> compress -> "
-            f"upload {full_storage_location}"
+            f"would download gs://{raw_bucket}/{raw_blob} -> compress/rotate/blackout -> "
+            f"upload {storage_bucket}/{video.subject_id}/<processed>.mp4"
         )
 
     try:
@@ -151,17 +149,20 @@ def process_one(row: dict, *, dry_run: bool) -> tuple[bool, str]:
             return False, f"download failed: {msg}"
 
         processor = FileProcessor(video)
-        compress_path, compress_err = processor.compress_vid()
-        if compress_err:
-            return False, f"compress failed: {compress_err}"
+        ok, step, process_err = compress_rotate_blackout_video(video, processor)
+        if not ok:
+            return False, f"{step} failed: {process_err}"
 
-        video.compress_video_path = compress_path
-        video.gcp_storage_video_location = dest_blob
+        dest_blob = f"{video.subject_id}/{os.path.basename(video.compress_video_path)}"
+        full_storage_location = f"{storage_bucket}/{dest_blob}"
 
-        ok, upload_err = storage.upload_file_to_gcs(compress_path, dest_blob, storage_bucket)
+        ok, upload_err = storage.upload_file_to_gcs(
+            video.compress_video_path, dest_blob, storage_bucket
+        )
         if not ok:
             return False, f"upload failed: {upload_err}"
 
+        video.gcp_storage_video_location = dest_blob
         video_size_mb, _, size_err = storage.get_object_sizes(storage_bucket, dest_blob, None)
         if size_err:
             logger.warning("size check failed for %s: %s", record_id, size_err)
@@ -170,10 +171,8 @@ def process_one(row: dict, *, dry_run: bool) -> tuple[bool, str]:
             "gcp_storage_video_location": full_storage_location,
             "pipeline_run_date": _today_pipeline_run_date(),
             "status_test": STATUS_TEST_SUCCESS,
+            "video_size_mb": video_size_mb,
         }
-        if video_size_mb is not None:
-            update_fields["video_size_mb"] = video_size_mb
-
         _update_airtable(record_id, update_fields, dry_run=False)
         return True, full_storage_location
 

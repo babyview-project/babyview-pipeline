@@ -744,6 +744,27 @@ class FileProcessor:
         safe_clear_dir(str(processed_folder) if processed_folder else None)
 
 
+def compress_rotate_blackout_video(video, processor):
+    """
+    Compress, rotate, and optionally blackout a local raw video.
+    Returns (success, failed_step, error_message).
+    """
+    video.compress_video_path, compress_err = processor.compress_vid()
+    if compress_err:
+        return False, "compress", compress_err
+
+    video.compress_video_path, rotate_err = processor.rotate_video()
+    if rotate_err:
+        return False, "rotate", rotate_err
+
+    if video.blackout_region:
+        video.compress_video_path, blackout_err = processor.blackout_video()
+        if blackout_err:
+            return False, "blackout", blackout_err
+
+    return True, None, None
+
+
 def _parse_time_str(time_str):
     """Parses time string in HH:MM:SS or MM:SS format to seconds."""
     parts = [int(p) for p in time_str.strip().split(":")]

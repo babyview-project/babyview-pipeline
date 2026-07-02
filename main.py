@@ -7,7 +7,7 @@ from pathlib import Path
 import shutil
 from typing import List, Dict, Any
 import settings
-from controllers import GoogleDriveDownloader, FileProcessor, setup_logging
+from controllers import GoogleDriveDownloader, FileProcessor, setup_logging, compress_rotate_blackout_video
 from slack_notifier import notify_run_finished, notify_run_started
 from imu.utils import process_imu_for_video_dir
 from gcp_storage_services import GCPStorageServices
@@ -307,22 +307,18 @@ def zip_metadata(
 
 
 def compress_rotate_blackout(video: Video, processor, logs):
-    video.compress_video_path, compress_err = processor.compress_vid()
-    if compress_err:
-        video.status = VideoStatus.COMPRESS_FAIL
-        return fail_step(logs, video, Step.COMPRESS, compress_err)
+    ok, step, err = compress_rotate_blackout_video(video, processor)
+    if ok:
+        return True
 
-    video.compress_video_path, rotate_err = processor.rotate_video()
-    if rotate_err:
-        video.status = VideoStatus.ROTATE_FAIL
-        return fail_step(logs, video, Step.ROTATE, rotate_err)
-    if video.blackout_region:
-        video.compress_video_path, blackout_err = processor.blackout_video()
-        if blackout_err:
-            video.status = VideoStatus.BLACKOUT_FAIL
-            return fail_step(logs, video, Step.BLACKOUT, blackout_err)
-
-    return True
+    status_map = {
+        "compress": (Step.COMPRESS, VideoStatus.COMPRESS_FAIL),
+        "rotate": (Step.ROTATE, VideoStatus.ROTATE_FAIL),
+        "blackout": (Step.BLACKOUT, VideoStatus.BLACKOUT_FAIL),
+    }
+    step_enum, fail_status = status_map[step]
+    video.status = fail_status
+    return fail_step(logs, video, step_enum, err)
 
 
 def compressed_upload(video: Video, logs):
@@ -374,16 +370,15 @@ def process_single_video(video: Video, logs, download_source: str = "google_driv
         if download_source == "google_drive":
             if not upload_raw(video, logs):
                 return
-        if meta_failed:
-            return  # ensure stop after raw upload if metadata failed
 
-        # Step 4:
-        # Zip and compress the meta data and vid, upload to storage bucket
-        if 'luna' not in video.gopro_video_id.lower() and not video.gcp_raw_location.lower().endswith('lrv'):
-            if not zip_metadata(video, processor, logs, add_imu_suffix=not imu_failed):
-                return
-            if video.status in [VideoStatus.META_FAIL]:
-                return
+        # Step 4: zip metadata only when extraction succeeded; always compress/upload
+        # the video when raw is available (Drive upload ok, or raw downloaded from GCS).
+        if not meta_failed:
+            if 'luna' not in video.gopro_video_id.lower() and not video.gcp_raw_location.lower().endswith('lrv'):
+                if not zip_metadata(video, processor, logs, add_imu_suffix=not imu_failed):
+                    return
+                if video.status in [VideoStatus.META_FAIL]:
+                    return
 
         if not compress_rotate_blackout(video, processor, logs):
             return
