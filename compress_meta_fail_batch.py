@@ -204,7 +204,7 @@ def main():
     for row in iterator:
         record_id = row.get("_airtable_record_id") or row.get("unique_video_id")
         label = row.get("gopro_video_id") or record_id
-        iterator.set_postfix_str=str(label))
+        iterator.set_postfix_str(str(label))
 
         success, message = process_one(row, dry_run=args.dry_run)
         if success:
