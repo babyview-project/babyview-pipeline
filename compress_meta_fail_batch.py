@@ -7,8 +7,9 @@ For each row:
   - download raw from gcp_raw_location
   - compress, rotate, and blackout (same steps as main pipeline)
   - upload to the storage bucket
-  - update gcp_storage_video_location, video_size_mb, pipeline_run_date, status_test
-  - leave status unchanged
+  - update gcp_storage_video_location, video_size_mb, pipeline_run_date, status_test on success
+  - on compression failure: set status to error_in_compression, store error in gcp_storage_video_location
+  - leave status unchanged on other failures (status_test only)
 
 Usage:
   python compress_meta_fail_batch.py --dry_run --limit 5
@@ -101,7 +102,7 @@ def fetch_meta_fail_missing_storage(limit: int | None = None):
     return rows
 
 
-def _truncate_status_test(value: str, *, max_len: int = STATUS_TEST_MAX_LEN) -> str:
+def _truncate_airtable_text(value: str, *, max_len: int = STATUS_TEST_MAX_LEN) -> str:
     value = (value or "").strip()
     if len(value) <= max_len:
         return value
@@ -109,9 +110,10 @@ def _truncate_status_test(value: str, *, max_len: int = STATUS_TEST_MAX_LEN) -> 
 
 
 def _update_airtable(record_id: str, fields: dict, *, dry_run: bool) -> bool:
-    if "status_test" in fields and fields["status_test"] is not None:
-        fields = dict(fields)
-        fields["status_test"] = _truncate_status_test(str(fields["status_test"]))
+    fields = dict(fields)
+    for key in ("status_test", "gcp_storage_video_location"):
+        if key in fields and fields[key] is not None:
+            fields[key] = _truncate_airtable_text(str(fields[key]))
 
     if dry_run:
         print(f"[DRY_RUN] would update {record_id}: {fields}")
@@ -125,23 +127,27 @@ def _update_airtable(record_id: str, fields: dict, *, dry_run: bool) -> bool:
         return False
 
 
-def process_one(row: dict, *, dry_run: bool) -> tuple[bool, str]:
+def process_one(row: dict, *, dry_run: bool) -> tuple[bool, str, str | None]:
+    """
+    Returns (success, message, failed_step).
+    failed_step is set on failure (e.g. 'compress', 'rotate', 'download').
+    """
     record_id = row.get("_airtable_record_id") or row.get("unique_video_id")
     if not record_id:
-        return False, "missing Airtable record id"
+        return False, "missing Airtable record id", None
 
     raw_loc = row.get("gcp_raw_location")
     if not raw_loc or (isinstance(raw_loc, float) and str(raw_loc) == "nan"):
-        return False, "gcp_raw_location is empty"
+        return False, "gcp_raw_location is empty", None
 
     try:
         raw_bucket, raw_blob = _parse_gcs_location(str(raw_loc))
     except ValueError as e:
-        return False, str(e)
+        return False, str(e), None
 
     video = Video(video_info=row)
     if not video.subject_id:
-        return False, "subject_id is missing"
+        return False, "subject_id is missing", None
 
     work_dir = os.path.join(WORK_ROOT, record_id)
     raw_dir = os.path.join(work_dir, "raw")
@@ -159,17 +165,17 @@ def process_one(row: dict, *, dry_run: bool) -> tuple[bool, str]:
         return True, (
             f"would download gs://{raw_bucket}/{raw_blob} -> compress/rotate/blackout -> "
             f"upload {storage_bucket}/{video.subject_id}/<processed>.mp4"
-        )
+        ), None
 
     try:
         ok, msg = storage.download_file_from_gcs(raw_bucket, raw_blob, local_raw)
         if not ok:
-            return False, f"download failed: {msg}"
+            return False, f"download failed: {msg}", "download"
 
         processor = FileProcessor(video)
         ok, step, process_err = compress_rotate_blackout_video(video, processor)
         if not ok:
-            return False, f"{step} failed: {process_err}"
+            return False, process_err or f"{step} failed", step
 
         dest_blob = f"{video.subject_id}/{os.path.basename(video.compress_video_path)}"
         full_storage_location = f"{storage_bucket}/{dest_blob}"
@@ -178,7 +184,7 @@ def process_one(row: dict, *, dry_run: bool) -> tuple[bool, str]:
             video.compress_video_path, dest_blob, storage_bucket
         )
         if not ok:
-            return False, f"upload failed: {upload_err}"
+            return False, f"upload failed: {upload_err}", "upload"
 
         video.gcp_storage_video_location = dest_blob
         video_size_mb, _, size_err = storage.get_object_sizes(storage_bucket, dest_blob, None)
@@ -197,7 +203,7 @@ def process_one(row: dict, *, dry_run: bool) -> tuple[bool, str]:
                 record_id,
                 full_storage_location,
             )
-        return True, full_storage_location
+        return True, full_storage_location, None
 
     finally:
         if os.path.isdir(work_dir):
@@ -228,7 +234,7 @@ def main():
         label = row.get("gopro_video_id") or record_id
         iterator.set_postfix_str(str(label))
 
-        success, message = process_one(row, dry_run=args.dry_run)
+        success, message, failed_step = process_one(row, dry_run=args.dry_run)
         if success:
             ok_count += 1
             if args.dry_run:
@@ -237,13 +243,24 @@ def main():
                 logger.info("compressed_batch_ok record_id=%s location=%s", record_id, message)
         else:
             fail_count += 1
-            logger.error("compressed_batch_fail record_id=%s error=%s", record_id, message)
+            logger.error(
+                "compressed_batch_fail record_id=%s step=%s error=%s",
+                record_id,
+                failed_step,
+                message,
+            )
             if not args.dry_run:
-                if not _update_airtable(
-                    record_id,
-                    {"status_test": f"compressed_batch_fail: {message}"},
-                    dry_run=False,
-                ):
+                if failed_step == "compress":
+                    update_fields = {
+                        "status": VideoStatus.COMPRESS_FAIL,
+                        "gcp_storage_video_location": message,
+                        "pipeline_run_date": _today_pipeline_run_date(),
+                    }
+                else:
+                    update_fields = {
+                        "status_test": f"compressed_batch_fail: {failed_step}: {message}",
+                    }
+                if not _update_airtable(record_id, update_fields, dry_run=False):
                     logger.error(
                         "could not record failure in Airtable for %s; see log above",
                         record_id,
