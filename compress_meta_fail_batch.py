@@ -36,6 +36,7 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 STATUS_TEST_SUCCESS = "compressed_batch_sucess"
+STATUS_TEST_MAX_LEN = 1000
 WORK_ROOT = os.path.join("data", "bv_tmp", "compress_meta_fail_batch")
 
 storage = GCPStorageServices()
@@ -100,11 +101,28 @@ def fetch_meta_fail_missing_storage(limit: int | None = None):
     return rows
 
 
-def _update_airtable(record_id: str, fields: dict, *, dry_run: bool) -> None:
+def _truncate_status_test(value: str, *, max_len: int = STATUS_TEST_MAX_LEN) -> str:
+    value = (value or "").strip()
+    if len(value) <= max_len:
+        return value
+    return value[: max_len - 3] + "..."
+
+
+def _update_airtable(record_id: str, fields: dict, *, dry_run: bool) -> bool:
+    if "status_test" in fields and fields["status_test"] is not None:
+        fields = dict(fields)
+        fields["status_test"] = _truncate_status_test(str(fields["status_test"]))
+
     if dry_run:
         print(f"[DRY_RUN] would update {record_id}: {fields}")
-        return
-    airtable_services.update_video_table_single_video(record_id, fields)
+        return True
+
+    try:
+        airtable_services.update_video_table_single_video(record_id, fields)
+        return True
+    except Exception as e:
+        logger.error("airtable_update_failed record_id=%s error=%s fields=%s", record_id, e, fields)
+        return False
 
 
 def process_one(row: dict, *, dry_run: bool) -> tuple[bool, str]:
@@ -173,7 +191,12 @@ def process_one(row: dict, *, dry_run: bool) -> tuple[bool, str]:
             "status_test": STATUS_TEST_SUCCESS,
             "video_size_mb": video_size_mb,
         }
-        _update_airtable(record_id, update_fields, dry_run=False)
+        if not _update_airtable(record_id, update_fields, dry_run=False):
+            logger.error(
+                "compressed upload ok but airtable update failed record_id=%s location=%s",
+                record_id,
+                full_storage_location,
+            )
         return True, full_storage_location
 
     finally:
@@ -216,11 +239,15 @@ def main():
             fail_count += 1
             logger.error("compressed_batch_fail record_id=%s error=%s", record_id, message)
             if not args.dry_run:
-                _update_airtable(
+                if not _update_airtable(
                     record_id,
                     {"status_test": f"compressed_batch_fail: {message}"},
                     dry_run=False,
-                )
+                ):
+                    logger.error(
+                        "could not record failure in Airtable for %s; see log above",
+                        record_id,
+                    )
             else:
                 print(f"[DRY_RUN FAIL] {record_id}: {message}")
 

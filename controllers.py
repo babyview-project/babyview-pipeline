@@ -659,7 +659,10 @@ class FileProcessor:
                 capture_output=True, text=True,
             )
         except subprocess.CalledProcessError as e:
-            msg = f'Error executing command: {cmd}\nError message: {e.stderr}'
+            stderr = (e.stderr or "").strip()
+            if len(stderr) > 500:
+                stderr = stderr[-500:]
+            msg = f'Error executing command: {cmd}\nError message: {stderr}'
             return None, msg
 
         return output_path, None  # Success
