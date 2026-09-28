@@ -70,6 +70,7 @@ class GoogleDriveDownloader:
     def __init__(self):
         self.SCOPES = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/drive']
         self.drive_service = self.build_google_drive_service(service_type='drive')
+        self._verify_babyview_drive_access()
 
     def build_google_drive_service(self, service_type='drive'):
         creds = None
@@ -85,6 +86,30 @@ class GoogleDriveDownloader:
                 token.write(creds.to_json())
         version = 'v3' if service_type == 'drive' else 'v4'
         return build(service_type, version, credentials=creds)
+
+    def _verify_babyview_drive_access(self):
+        """Fail fast if the OAuth account cannot see the configured Babyview shared drive.
+
+        A wrong/stale token otherwise makes every video look like Drive not_found.
+        """
+        about = self.drive_service.about().get(fields="user").execute()
+        user = about.get("user") or {}
+        email = user.get("emailAddress") or "?"
+        logger.info("google_drive_auth email=%s name=%s", email, user.get("displayName"))
+        try:
+            drive = self.drive_service.drives().get(driveId=settings.babyview_drive_id).execute()
+        except Exception as e:
+            raise RuntimeError(
+                f"Google account {email} cannot access babyview_drive_id="
+                f"{settings.babyview_drive_id}. Re-auth as a member of the Babyview "
+                f"shared drive (delete {settings.google_api_token_path} and rerun). "
+                f"Underlying error: {e}"
+            ) from e
+        logger.info(
+            "google_drive_ok drive_id=%s drive_name=%s",
+            settings.babyview_drive_id,
+            drive.get("name"),
+        )
 
     def get_file_paths_from_google_drive(self, video_info_from_tracking: pd.DataFrame) -> tuple:
         file_info = []
