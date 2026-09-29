@@ -14,6 +14,7 @@ from gcp_storage_services import GCPStorageServices
 from video import Video
 from airtable_services import airtable_services
 from status_types import VideoStatus
+from drive_soft_delete_old_files import run_drive_soft_delete
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -27,6 +28,16 @@ def get_downloader() -> GoogleDriveDownloader:
     if downloader is None:
         downloader = GoogleDriveDownloader()
     return downloader
+
+
+def _parse_bool_arg(value: str) -> bool:
+    """Parse true/false CLI values for --soft_delete."""
+    v = str(value).strip().lower()
+    if v in ("true", "1", "yes", "y"):
+        return True
+    if v in ("false", "0", "no", "n"):
+        return False
+    raise argparse.ArgumentTypeError(f"expected true/false, got {value!r}")
 
 
 class Step:
@@ -440,6 +451,44 @@ def process_single_video(video: Video, logs, download_source: str = "google_driv
         })
 
 
+def _run_post_pipeline_soft_delete(*, dry_run: bool = False) -> dict:
+    """Soft-delete old Drive files after video processing. Failures are logged, not raised."""
+    try:
+        return run_drive_soft_delete(
+            days_old=settings.drive_soft_delete_days_old,
+            dry_run=dry_run,
+            downloader=get_downloader(),
+        )
+    except Exception as e:
+        logger.exception("drive_soft_delete_failed error=%s", e)
+        return {
+            "checked": 0,
+            "trashed": 0,
+            "skipped": 0,
+            "failed": 0,
+            "dry_run": dry_run,
+            "days_old": settings.drive_soft_delete_days_old,
+            "error": str(e),
+        }
+
+
+def _maybe_run_soft_delete(run_context: dict[str, Any] | None) -> dict:
+    """Run soft-delete unless explicitly disabled via run_context['soft_delete']=False."""
+    enabled = True if not run_context else bool(run_context.get("soft_delete", True))
+    if not enabled:
+        logger.info("drive_soft_delete skipped soft_delete=false")
+        return {
+            "checked": 0,
+            "trashed": 0,
+            "skipped": 0,
+            "failed": 0,
+            "dry_run": False,
+            "days_old": settings.drive_soft_delete_days_old,
+            "skipped_by_flag": True,
+        }
+    return _run_post_pipeline_soft_delete()
+
+
 def process_videos(
     video_tracking_data,
     download_source: str = "google_drive",
@@ -455,12 +504,15 @@ def process_videos(
     if video_tracking_data.empty:
         logs['airtable'].append("No_Record_From_Airtable.")
         notify_run_started(video_tracking_data, run_context=run_context, videos_to_process=0)
+        soft_delete = _maybe_run_soft_delete(run_context)
+        logs['drive_soft_delete'] = soft_delete
         notify_run_finished(
             queried_count=0,
             outcomes=[],
             logs=dict(logs),
             run_context=run_context,
             duration_sec=time.time() - run_started_at,
+            soft_delete=soft_delete,
         )
         return dict(logs)
 
@@ -488,6 +540,9 @@ def process_videos(
         except Exception as e:
             logs['general_error'].append({f'{video.unique_video_id}': str(e)})
 
+    soft_delete = _maybe_run_soft_delete(run_context)
+    logs['drive_soft_delete'] = soft_delete
+
     log_name = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_logs.json"
     storage.upload_dict_to_gcs(dict(logs), "hs-babyview-logs", log_name)
     logger.info("logs_uploaded bucket=hs-babyview-logs object=%s", log_name)
@@ -499,6 +554,7 @@ def process_videos(
         run_context=run_context,
         duration_sec=time.time() - run_started_at,
         log_object=f"hs-babyview-logs/{log_name}",
+        soft_delete=soft_delete,
     )
 
     return dict(logs)
@@ -539,6 +595,13 @@ def main():
         '--no_base_filter',
         action='store_true',
         help="Bypass base Airtable filters (status/logging_date)",
+    )
+    parser.add_argument(
+        '--soft_delete',
+        type=_parse_bool_arg,
+        default=True,
+        metavar='true|false',
+        help="After video processing, soft-delete old Drive files (default: true).",
     )
 
     args = parser.parse_args()
@@ -606,6 +669,7 @@ def main():
         "download_source": args.download_source,
         "limit": args.limit,
         "dry_run": args.dry_run,
+        "soft_delete": args.soft_delete,
     }
 
     if args.dry_run:

@@ -156,6 +156,31 @@ def _failure_lines(outcomes: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
+def _format_soft_delete_lines(soft_delete: dict[str, Any] | None) -> list[str]:
+    if not soft_delete:
+        return []
+    if soft_delete.get("skipped_by_flag"):
+        return ["• *Drive soft-delete:* skipped (`--soft_delete false`)"]
+    if soft_delete.get("error"):
+        return [f"• *Drive soft-delete:* failed — {soft_delete['error']}"]
+
+    days_old = soft_delete.get("days_old")
+    age = f" (>{days_old}d)" if days_old is not None else ""
+    mode = " dry_run" if soft_delete.get("dry_run") else ""
+    lines = [
+        "• *Drive soft-delete*"
+        f"{age}{mode}: "
+        f"checked={soft_delete.get('checked', 0)} | "
+        f"trashed={soft_delete.get('trashed', 0)} | "
+        f"skipped={soft_delete.get('skipped', 0)} | "
+        f"failed={soft_delete.get('failed', 0)}"
+    ]
+    lookup_errors = soft_delete.get("lookup_errors") or 0
+    if lookup_errors:
+        lines.append(f"  ◦ Drive lookup errors while resolving trash targets: {lookup_errors}")
+    return lines
+
+
 def format_run_finished_message(
     *,
     queried_count: int,
@@ -164,6 +189,7 @@ def format_run_finished_message(
     run_context: dict[str, Any] | None = None,
     duration_sec: float | None = None,
     log_object: str | None = None,
+    soft_delete: dict[str, Any] | None = None,
 ) -> str:
     status_counts = _count_outcomes(outcomes)
     processed = status_counts.get(VideoStatus.PROCESSED, 0)
@@ -181,6 +207,7 @@ def format_run_finished_message(
         lines.append(f"• *Outcome breakdown:* {', '.join(summary_parts[:10])}")
 
     lines.extend(_failure_lines(outcomes))
+    lines.extend(_format_soft_delete_lines(soft_delete or logs.get("drive_soft_delete")))
 
     step_fail_keys = sorted(k for k in logs if k.endswith("_fail"))
     if step_fail_keys:
@@ -232,6 +259,7 @@ def notify_run_finished(
     run_context: dict[str, Any] | None = None,
     duration_sec: float | None = None,
     log_object: str | None = None,
+    soft_delete: dict[str, Any] | None = None,
 ) -> None:
     message = format_run_finished_message(
         queried_count=queried_count,
@@ -240,5 +268,6 @@ def notify_run_finished(
         run_context=run_context,
         duration_sec=duration_sec,
         log_object=log_object,
+        soft_delete=soft_delete,
     )
     send_slack_message(message)

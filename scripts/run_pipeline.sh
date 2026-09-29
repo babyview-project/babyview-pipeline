@@ -8,6 +8,16 @@ if [ "${SKIP:-}" = "true" ]; then
   exit 0
 fi
 
+# Optional: instance metadata run_soft_delete=false to skip post-run Drive trash.
+# Default true when unset.
+RUN_SOFT_DELETE=$(curl -sf "http://metadata.google.internal/computeMetadata/v1/instance/attributes/run_soft_delete" \
+  -H "Metadata-Flavor: Google" 2>/dev/null || true)
+RUN_SOFT_DELETE=$(echo "${RUN_SOFT_DELETE:-true}" | tr '[:upper:]' '[:lower:]')
+case "${RUN_SOFT_DELETE}" in
+  true|false) ;;
+  *) RUN_SOFT_DELETE=true ;;
+esac
+
 LOG=/var/log/pipeline_run_$(date +%Y%m%d_%H%M%S).log
 exec >"$LOG" 2>&1
 
@@ -16,6 +26,7 @@ PROJECT_DIR=/home/${RUN_USER}/babyview-pipeline
 
 echo "=== Pipeline started at $(date) ==="
 echo "Orchestrator: $(whoami), pipeline user: ${RUN_USER}, project: ${PROJECT_DIR}"
+echo "run_soft_delete=${RUN_SOFT_DELETE}"
 
 if [ ! -f "${PROJECT_DIR}/main.py" ]; then
   echo "ERROR: ${PROJECT_DIR}/main.py not found"
@@ -42,7 +53,7 @@ sudo -u "${RUN_USER}" bash -c "
   source '${VENV_ACTIVATE}'
   tmux kill-session -t pipeline 2>/dev/null || true
   tmux new-session -d -s pipeline \
-    \"cd '${PROJECT_DIR}' && source '${VENV_ACTIVATE}' && python main.py; tmux wait-for -S done\"
+    \"cd '${PROJECT_DIR}' && source '${VENV_ACTIVATE}' && python main.py --soft_delete ${RUN_SOFT_DELETE}; tmux wait-for -S done\"
   tmux wait-for done
 "
 

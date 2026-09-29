@@ -16,7 +16,8 @@ is_h264_nvenc_available = False
 
 babyview_drive_id = '0AJtfZGZvxvfxUk9PVA'
 
-trash_old_drive_files = []
+# Soft-delete Drive raw files this many days after pipeline_run_date (post-run step).
+drive_soft_delete_days_old = 180
 
 execute_databrary_uploader = True
 databrary_token_url = "https://api.databrary.org/o/token/"
