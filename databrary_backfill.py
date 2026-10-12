@@ -106,10 +106,11 @@ def _release_formula_part(release_name: str, release_mode: str) -> str:
       - has:  videos that include this release tag (may have others)
       - only: videos whose only release tag is this one
     """
-    has_clause = f"FIND('{release_name}', ARRAYJOIN({{release}}))"
+    # Airtable LEN() on linked records is unreliable; ARRAYJOIN equality means
+    # the joined primary-field names are exactly this single release.
     if release_mode == "only":
-        return f"AND({has_clause}, LEN({{release}}) = 1)"
-    return has_clause
+        return f"ARRAYJOIN({{release}}) = '{release_name}'"
+    return f"FIND('{release_name}', ARRAYJOIN({{release}}))"
 
 
 def select_video_ids_for_databrary(
