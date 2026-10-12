@@ -271,3 +271,62 @@ def notify_run_finished(
         soft_delete=soft_delete,
     )
     send_slack_message(message)
+
+
+def notify_databrary_started(
+    *,
+    candidate_count: int,
+    filters: dict[str, Any] | None = None,
+    dry_run: bool = False,
+) -> None:
+    lines = [
+        ":outbox_tray: *BabyView Databrary Upload — Started*",
+        f"• *Time:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"• *Candidates:* {candidate_count}",
+    ]
+    if filters:
+        for key, value in filters.items():
+            if value is None or value == "" or value == []:
+                continue
+            lines.append(f"• *{key}:* `{value}`")
+    if dry_run:
+        lines.append("• *Mode:* `dry_run`")
+    send_slack_message("\n".join(lines))
+
+
+def notify_databrary_finished(
+    *,
+    summary: dict[str, Any],
+    filters: dict[str, Any] | None = None,
+    duration_sec: float | None = None,
+    dry_run: bool = False,
+) -> None:
+    lines = [
+        ":inbox_tray: *BabyView Databrary Upload — Finished*",
+        f"• *Time:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"• *Candidates:* {summary.get('candidates', 0)}",
+        f"• *Success:* {summary.get('success', 0)}",
+        f"• *Failed:* {summary.get('failed', 0)}",
+        f"• *Skipped:* {summary.get('skipped', 0)}",
+    ]
+    if duration_sec is not None:
+        mins, secs = divmod(int(duration_sec), 60)
+        if mins:
+            lines.append(f"• *Duration:* {mins}m {secs}s")
+        else:
+            lines.append(f"• *Duration:* {secs}s")
+    if filters:
+        for key, value in filters.items():
+            if value is None or value == "" or value == []:
+                continue
+            lines.append(f"• *{key}:* `{value}`")
+    if dry_run:
+        lines.append("• *Mode:* `dry_run`")
+    errors = summary.get("errors") or []
+    if errors:
+        lines.append(f"• *Sample errors:* {len(errors)}")
+        for err in errors[:8]:
+            lines.append(f"  ◦ {err}")
+        if len(errors) > 8:
+            lines.append(f"  ◦ … and {len(errors) - 8} more")
+    send_slack_message("\n".join(lines))

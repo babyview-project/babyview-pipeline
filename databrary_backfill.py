@@ -1,7 +1,9 @@
 # databrary_backfill.py
 
 import os
-from typing import List
+import re
+import time
+from typing import Any, List
 
 from datetime import datetime
 import pytz
@@ -11,10 +13,34 @@ from gcp_storage_services import GCPStorageServices
 from airtable_services import airtable_services
 from video import Video
 from databrary_client import DatabraryClient
-from status_types import VideoStatus
+from slack_notifier import notify_databrary_finished, notify_databrary_started
 
 storage = GCPStorageServices()
 dc = DatabraryClient()
+
+# Airtable / pipeline store GCS video as: "<bucket_name>_storage/<subject>/<file>.mp4"
+_GCS_STORAGE_RE = re.compile(
+    r"^[A-Za-z0-9._-]+_storage/.+\.mp4$",
+    re.IGNORECASE,
+)
+
+
+def _is_valid_gcs_storage_location(loc: Any) -> bool:
+    """Non-empty, not an error string, and looks like a pipeline GCS storage URL."""
+    if not loc or not isinstance(loc, str):
+        return False
+    s = loc.strip()
+    if not s:
+        return False
+    upper = s.upper()
+    if upper.startswith("ERROR") or "ERROR:" in upper:
+        return False
+    if "_storage/" not in s:
+        return False
+    bucket_part, _, rest = s.partition("/")
+    if not bucket_part.endswith("_storage") or not rest:
+        return False
+    return bool(_GCS_STORAGE_RE.match(s))
 
 
 def _download_from_gcs_to_temp(gcp_storage_video_location: str) -> tuple[str | None, str | None]:
@@ -65,11 +91,91 @@ def _mark_airtable_error(video_record_id: str, error_msg: str):
         print(f"[AIRTABLE_UPDATE_ERROR] {video_record_id}: {e}")
 
 
+def _base_gcs_formula_parts() -> List[str]:
+    """Shared selection filters: valid non-empty GCS location, no error text."""
+    return [
+        "{gcp_storage_video_location}",
+        'NOT(FIND("ERROR", UPPER({gcp_storage_video_location})))',
+        'FIND("_storage/", {gcp_storage_video_location})',
+    ]
+
+
+def _release_formula_part(release_name: str, release_mode: str) -> str:
+    """
+    release_mode:
+      - has:  videos that include this release tag (may have others)
+      - only: videos whose only release tag is this one
+    """
+    has_clause = f"FIND('{release_name}', ARRAYJOIN({{release}}))"
+    if release_mode == "only":
+        return f"AND({has_clause}, LEN({{release}}) = 1)"
+    return has_clause
+
+
+def select_video_ids_for_databrary(
+    *,
+    release: str | None = None,
+    release_mode: str = "has",
+    subject_ids: List[str] | None = None,
+    unique_video_ids: List[str] | None = None,
+    status_test: int | None = None,
+    limit: int | None = None,
+) -> List[str]:
+    """
+    Select Airtable video record IDs. All provided filters are AND'd together,
+    plus the base GCS location constraints (no status=successfully_processed).
+    """
+    if release_mode not in ("has", "only"):
+        raise ValueError(f"release_mode must be 'has' or 'only', got {release_mode!r}")
+
+    formula_parts = list(_base_gcs_formula_parts())
+
+    if release:
+        formula_parts.append(_release_formula_part(release, release_mode))
+
+    if subject_ids:
+        formula_parts.append(airtable_services._build_subject_filter(subject_ids))
+
+    if status_test is not None:
+        formula_parts.append(f"{{status_test}} = {int(status_test)}")
+
+    if unique_video_ids:
+        id_filter = "OR(" + ", ".join([f"RECORD_ID() = '{rid}'" for rid in unique_video_ids]) + ")"
+        formula_parts.append(id_filter)
+
+    formula = "AND(" + ", ".join(formula_parts) + ")"
+    print(f"[INFO] Airtable formula: {formula}")
+
+    try:
+        records = airtable_services.video_table.all(formula=formula)
+    except Exception as e:
+        print(f"[ERROR] Failed to fetch records: {e}")
+        return []
+
+    video_ids: List[str] = []
+    for rec in records:
+        fields = rec.get("fields", {})
+        loc = fields.get("gcp_storage_video_location")
+        if not _is_valid_gcs_storage_location(loc):
+            print(
+                f"[FILTER] skip {rec.get('id')}: invalid gcp_storage_video_location={loc!r}"
+            )
+            continue
+        if rec.get("id"):
+            video_ids.append(rec["id"])
+
+    if limit is not None:
+        video_ids = video_ids[:limit]
+
+    print(f"[INFO] Selected {len(video_ids)} candidate videos after filters.")
+    return video_ids
+
+
 def backfill_databrary_for_video_ids(
     video_record_ids: List[str],
     dry_run: bool = False,
     show_progress: bool = True,
-):
+) -> dict[str, Any]:
     """
     Backfill Databrary uploads for specific Airtable video record IDs.
 
@@ -79,7 +185,17 @@ def backfill_databrary_for_video_ids(
       - build Video object with that local path
       - call DatabraryClient.upload_video(video)
       - remove local file
+
+    Returns a summary dict for Slack / logging.
     """
+    summary: dict[str, Any] = {
+        "candidates": len(video_record_ids),
+        "success": 0,
+        "failed": 0,
+        "skipped": 0,
+        "errors": [],
+    }
+
     iterator = video_record_ids
     if show_progress:
         iterator = tqdm(video_record_ids, desc="Databrary backfill", unit="video")
@@ -89,7 +205,10 @@ def backfill_databrary_for_video_ids(
         try:
             record = airtable_services.video_table.get(vid_id)
         except Exception as e:
-            print(f"[ERROR] Failed to fetch Airtable record {vid_id}: {e}")
+            msg = f"Failed to fetch Airtable record: {e}"
+            print(f"[ERROR] {vid_id}: {msg}")
+            summary["failed"] += 1
+            summary["errors"].append(f"{vid_id}: {msg}")
             continue
 
         fields = record.get("fields", {})
@@ -97,16 +216,19 @@ def backfill_databrary_for_video_ids(
         databrary_upload_date = fields.get("databrary_upload_date")
         if databrary_upload_date:
             print(f"[SKIP] {vid_id}: it has been uploaded on {databrary_upload_date}")
+            summary["skipped"] += 1
             continue
 
-        if not gcp_storage_video_location:
-            msg = "DOWNLOAD: no gcp_storage_video_location in Airtable"
+        if not _is_valid_gcs_storage_location(gcp_storage_video_location):
+            msg = f"DOWNLOAD: invalid gcp_storage_video_location: {gcp_storage_video_location!r}"
             print(f"[SKIP] {vid_id}: {msg}")
-            _mark_airtable_error(vid_id, msg)
+            summary["skipped"] += 1
+            summary["errors"].append(f"{vid_id}: {msg}")
             continue
 
         if dry_run:
             print(f"[DRY_RUN] {vid_id}: would download from {gcp_storage_video_location}")
+            summary["skipped"] += 1
             continue
 
         # 1) Download compressed mp4 from GCS to temp
@@ -114,6 +236,8 @@ def backfill_databrary_for_video_ids(
         if dl_err:
             print(f"[ERROR] {vid_id}: {dl_err}")
             _mark_airtable_error(vid_id, dl_err)
+            summary["failed"] += 1
+            summary["errors"].append(f"{vid_id}: {dl_err}")
             continue
 
         # 2) Build Video object from Airtable fields
@@ -133,7 +257,8 @@ def backfill_databrary_for_video_ids(
             msg = f"VIDEO_BUILD: failed to construct Video object: {e}"
             print(f"[ERROR] {vid_id}: {msg}")
             _mark_airtable_error(vid_id, msg)
-            # clean up temp file
+            summary["failed"] += 1
+            summary["errors"].append(f"{vid_id}: {msg}")
             try:
                 os.remove(local_path)
             except Exception:
@@ -145,8 +270,11 @@ def backfill_databrary_for_video_ids(
         status_url, error_log = dc.upload_video(video)
         if error_log:
             print(f"[Databrary] {vid_id}: errors -> {' | '.join(error_log)}")
+            summary["failed"] += 1
+            summary["errors"].append(f"{vid_id}: {' | '.join(error_log)}")
         else:
             print(f"[Databrary] {vid_id}: success -> {status_url}")
+            summary["success"] += 1
 
         # 4) Clean up local file
         try:
@@ -154,121 +282,123 @@ def backfill_databrary_for_video_ids(
         except Exception:
             pass
 
+    return summary
 
-def backfill_databrary_for_release(
-    release_name: str,
+
+def run_databrary_upload(
+    *,
+    release: str | None = None,
+    release_mode: str = "has",
+    subject_ids: List[str] | None = None,
+    unique_video_ids: List[str] | None = None,
+    status_test: int | None = None,
     limit: int | None = None,
     dry_run: bool = False,
     show_progress: bool = True,
-):
-    """
-    Use the Release table (tblVeWx2MbrXRa6o1) to find the row with Name=release_name,
-    get its linked 'Videos' field (list of video record IDs), and run Databrary backfill
-    on those videos.
-    """
-    video_ids = airtable_services.get_video_ids_for_release_missing_databrary_date(
-        release_name
+) -> dict[str, Any]:
+    """Select candidates (AND filters), Slack start/finish, then upload."""
+    filters = {
+        "release": release,
+        "release_mode": release_mode if release else None,
+        "subject_id": subject_ids,
+        "unique_video_id": unique_video_ids,
+        "status_test": status_test,
+        "limit": limit,
+    }
+
+    # If only explicit IDs are given with no other selectors, still AND with base GCS
+    # filters via select_video_ids_for_databrary.
+    video_ids = select_video_ids_for_databrary(
+        release=release,
+        release_mode=release_mode,
+        subject_ids=subject_ids or None,
+        unique_video_ids=unique_video_ids or None,
+        status_test=status_test,
+        limit=limit,
     )
+
+    notify_databrary_started(
+        candidate_count=len(video_ids),
+        filters=filters,
+        dry_run=dry_run,
+    )
+    started = time.time()
     if not video_ids:
-        print(f"[INFO] No videos found for release '{release_name}'")
-        return
-
-    if limit is not None:
-        video_ids = video_ids[:limit]
-
-    print(f"[INFO] Release '{release_name}' has {len(video_ids)} videos.")
-    if dry_run:
-        print("[DRY_RUN] Skipping Databrary download/upload and Airtable updates.")
+        summary = {
+            "candidates": 0,
+            "success": 0,
+            "failed": 0,
+            "skipped": 0,
+            "errors": ["No candidate videos matched filters."],
+        }
     else:
-        input(f"[INFO] About to backfill these videos: {video_ids}")
-    backfill_databrary_for_video_ids(video_ids, dry_run=dry_run, show_progress=show_progress)
-
-
-def backfill_databrary_auto(
-    status_test=None,
-    limit: int | None = None,
-    dry_run: bool = False,
-    show_progress: bool = True,
-):
-    """
-    Auto-select processed videos that:
-      - status == successfully_processed
-      - have a gcp_storage_video_location
-      - have no databrary_upload_status_url yet
-
-    and run the same backfill.
-
-    'limit' lets you test on just a few.
-    """
-    status_value = VideoStatus.PROCESSED  # "successfully_processed"
-    if not status_test:
-        formula = (
-            "AND("
-            f"{{status}} = '{status_value}',"
-            "{gcp_storage_video_location},"
-            "NOT({databrary_upload_date})"
-            ")"
+        summary = backfill_databrary_for_video_ids(
+            video_ids,
+            dry_run=dry_run,
+            show_progress=show_progress,
         )
-    else:
-        formula = (
-            "AND("
-            f"{{status}} = '{status_value}',"
-            f"{{status_test}} = {status_test},"
-            "{gcp_storage_video_location},"
-            "{databrary_upload_date}"
-            # "NOT({databrary_upload_date})"
-            ")"
-        )
-
-    print(f"[INFO] Airtable formula: {formula}")
-    try:
-        records = airtable_services.video_table.all(formula=formula)
-    except Exception as e:
-        print(f"[ERROR] Failed to fetch records for auto backfill: {e}")
-        return
-
-    if not records:
-        print("[INFO] No candidate videos found for Databrary backfill.")
-        return
-
-    if limit is not None:
-        records = records[:limit]
-
-    video_ids = [r["id"] for r in records]
-    print(f"[INFO] Found {len(video_ids)} candidate videos: {video_ids}")
-
-    backfill_databrary_for_video_ids(video_ids, dry_run=dry_run, show_progress=show_progress)
+    notify_databrary_finished(
+        summary=summary,
+        filters=filters,
+        duration_sec=time.time() - started,
+        dry_run=dry_run,
+    )
+    return summary
 
 
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Databrary backfill from GCS for existing videos")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Databrary backfill from GCS. Filters are AND'd: "
+            "--release/--release-mode, --subject_id, --unique_video_id, --status_test, "
+            "plus base GCS location checks (non-empty, no ERROR, valid *_storage/... .mp4)."
+        )
+    )
     parser.add_argument(
         "--unique_video_id",
         action="append",
-        help="Airtable video record ID to backfill (can repeat)",
+        default=None,
+        help="Airtable video record ID (repeatable); AND'd with other filters",
     )
     parser.add_argument(
         "--release",
         type=str,
-        help='Release Name in release table (e.g. "2025.1") to backfill all linked videos',
+        default=None,
+        help='Release name tag (e.g. "2026.1"); use with --release-mode',
+    )
+    parser.add_argument(
+        "--release-mode",
+        choices=("has", "only"),
+        default="has",
+        help=(
+            "has = videos that include this release tag (default); "
+            "only = videos whose only release tag is this one"
+        ),
+    )
+    parser.add_argument(
+        "--subject_id",
+        action="append",
+        default=None,
+        help="Participant subject_id (e.g. S00240001); repeatable; AND'd with other filters",
     )
     parser.add_argument(
         "--auto",
         action="store_true",
-        help="Auto-select videos (status processed & no databrary status) and backfill",
+        help="Select by base GCS filters only (and any other filters you pass)",
     )
     parser.add_argument(
         "--status_test",
         type=int,
-        help="Manual selected videos (status processed & no databrary status) and backfill",
+        default=None,
+        help="Optional Airtable status_test value; AND'd with other filters",
     )
     parser.add_argument(
         "--limit",
         type=int,
         default=None,
-        help="Optional limit when using --auto",
+        help="Optional cap on number of selected videos",
     )
     parser.add_argument(
         "--dry_run",
@@ -283,31 +413,31 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.unique_video_id:
-        backfill_databrary_for_video_ids(
+    has_selector = any(
+        [
             args.unique_video_id,
-            dry_run=args.dry_run,
-            show_progress=not args.no_progress,
-        )
-    elif args.release:
-        backfill_databrary_for_release(
             args.release,
-            limit=args.limit,
-            dry_run=args.dry_run,
-            show_progress=not args.no_progress,
+            args.subject_id,
+            args.auto,
+            args.status_test is not None,
+        ]
+    )
+    if not has_selector:
+        parser.error(
+            "Provide at least one selector: --auto, --release, --subject_id, "
+            "--unique_video_id, and/or --status_test"
         )
-    elif args.status_test:
-        backfill_databrary_auto(
-            status_test=args.status_test,
-            limit=args.limit,
-            dry_run=args.dry_run,
-            show_progress=not args.no_progress,
-        )
-    elif args.auto:
-        backfill_databrary_auto(
-            limit=args.limit,
-            dry_run=args.dry_run,
-            show_progress=not args.no_progress,
-        )
-    else:
-        print("Provide either --video-id (one or more) or --auto")
+
+    if args.release_mode != "has" and not args.release:
+        parser.error("--release-mode requires --release")
+
+    run_databrary_upload(
+        release=args.release,
+        release_mode=args.release_mode,
+        subject_ids=args.subject_id,
+        unique_video_ids=args.unique_video_id,
+        status_test=args.status_test,
+        limit=args.limit,
+        dry_run=args.dry_run,
+        show_progress=not args.no_progress,
+    )
