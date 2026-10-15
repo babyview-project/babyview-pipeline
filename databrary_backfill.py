@@ -92,11 +92,12 @@ def _mark_airtable_error(video_record_id: str, error_msg: str):
 
 
 def _base_gcs_formula_parts() -> List[str]:
-    """Shared selection filters: valid non-empty GCS location, no error text."""
+    """Shared selection filters: valid GCS location and not yet uploaded to Databrary."""
     return [
         "{gcp_storage_video_location}",
         'NOT(FIND("ERROR", UPPER({gcp_storage_video_location})))',
         'FIND("_storage/", {gcp_storage_video_location})',
+        "NOT({databrary_upload_date})",
     ]
 
 
@@ -124,7 +125,7 @@ def select_video_ids_for_databrary(
 ) -> List[str]:
     """
     Select Airtable video record IDs. All provided filters are AND'd together,
-    plus the base GCS location constraints (no status=successfully_processed).
+    plus base constraints: valid GCS location and empty databrary_upload_date.
     """
     if release_mode not in ("has", "only"):
         raise ValueError(f"release_mode must be 'has' or 'only', got {release_mode!r}")
@@ -354,7 +355,7 @@ if __name__ == "__main__":
         description=(
             "Databrary backfill from GCS. Filters are AND'd: "
             "--release/--release-mode, --subject_id, --unique_video_id, --status_test, "
-            "plus base GCS location checks (non-empty, no ERROR, valid *_storage/... .mp4)."
+            "plus base checks (valid GCS location, empty databrary_upload_date)."
         )
     )
     parser.add_argument(
