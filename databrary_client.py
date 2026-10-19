@@ -532,6 +532,7 @@ class DatabraryClient:
             limit: int | None = None,
             show_progress: bool = True,
             show_file_progress: bool = False,
+            allowed_record_ids: set[str] | None = None,
     ) -> Dict[str, Any]:
         """
         Patch Databrary files that have missing source_date by scanning Databrary once.
@@ -551,6 +552,7 @@ class DatabraryClient:
             session_id: If provided, only process this session id
             dry_run: If True, do not PATCH or update Airtable; just report what would happen
             limit: Optional cap on number of files to patch (across all sessions)
+            allowed_record_ids: If set, only patch files whose Airtable record id is in this set
 
         Returns:
             Summary dict with counts and a small list of errors.
@@ -562,11 +564,13 @@ class DatabraryClient:
             "volume_id": volume_id,
             "session_id": session_id,
             "dry_run": dry_run,
+            "allowed_record_ids": len(allowed_record_ids) if allowed_record_ids is not None else None,
             "scanned_sessions": 0,
             "scanned_files": 0,
             "candidates_missing_source_date": 0,
             "patched": 0,
             "airtable_updated": 0,
+            "skipped_not_in_allowlist": 0,
             "skipped_no_record_id": 0,
             "skipped_no_date_in_name": 0,
             "token_refresh_count": 0,
@@ -701,6 +705,9 @@ class DatabraryClient:
                 record_id = _extract_airtable_record_id(file_name)
                 if not record_id:
                     summary["skipped_no_record_id"] += 1
+                    continue
+                if allowed_record_ids is not None and record_id not in allowed_record_ids:
+                    summary["skipped_not_in_allowlist"] += 1
                     continue
                 else:
                     print(f"Processing record {record_id}")
